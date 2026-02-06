@@ -21,7 +21,7 @@ REQUIRED_CSV_COLUMNS = {
 }
 
 
-def read_csv(filepath: Path) -> list[dict]:
+def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]:
     """Read and validate a Liftosaur CSV export."""
     if not filepath.exists():
         raise FileNotFoundError(f"CSV file not found: {filepath}")
@@ -52,12 +52,19 @@ def read_csv(filepath: Path) -> list[dict]:
                 parse_iso(wdt)
             except ValueError:
                 continue
+            if workout_datetime and wdt != workout_datetime:
+                continue
             rows.append(row)
 
     if not rows:
         raise ValueError("No valid rows found in CSV.")
 
     return rows
+
+
+def read_csv(filepath: Path) -> list[dict]:
+    """Compatibility wrapper for CSV parsing."""
+    return parse_csv(filepath)
 
 
 def group_workouts(rows: Iterable[dict]) -> OrderedDict[str, list[dict]]:
