@@ -35,3 +35,20 @@ python -m liftosaur_garmin validate tests/output/test_v1.fit
 ```bash
 python scripts/compare_fits.py tests/output/test_v2.fit tests/fixtures/fit/21783591203_ACTIVITY.fit
 ```
+
+
+
+ok i think i need a little bit better organizing for the tests and everthing. so i can future proof this right now when i run this 
+
+
+
+python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload --output tests/output/test_v1.fit
+
+it works but it just dumps the file in the output folder and i have to keep track of the versions manually. I want to be able to just run the command and have it automatically increment the version number for me. So maybe I can do something like this in the terminal:
+
+```bash
+python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload --output tests/output/test_v3.fit
+```
+
+This are notes for me in the future when I want to implement this auto-incrementing feature. I can write a small script that checks the `tests/output` directory for existing `test_vN.fit` files, finds the highest N, and then generates the next version number automatically. This way, I can just run the command without worrying about version numbers.
+

@@ -8,7 +8,7 @@ import sys
 from collections import OrderedDict
 from pathlib import Path
 
-from .csv_parser import group_workouts, read_csv
+from .csv_parser import group_workouts, parse_csv
 from .fit.utils import parse_iso
 from .history import get_new_workouts, load_history, mark_uploaded
 from .uploader import garmin_setup, upload_to_garmin
@@ -123,7 +123,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        rows = read_csv(Path(args.csv))
+        # Temporary filter to target the most recent workout in the CSV.
+        rows = parse_csv(
+            Path(args.csv), workout_datetime="2026-02-05T11:42:37.509Z"
+        )
     except (FileNotFoundError, ValueError) as exc:
         print(f"❌ {exc}")
         return 1
