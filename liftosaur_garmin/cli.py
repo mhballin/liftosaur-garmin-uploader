@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
 from collections import OrderedDict
 from pathlib import Path
 
@@ -31,6 +33,41 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def build_validate_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="liftosaur-garmin validate",
+        description="Validate a FIT file using Garmin FIT SDK (FitCSVTool.jar)",
+    )
+    parser.add_argument("fit_file", help="Path to the FIT file to validate")
+    parser.add_argument(
+        "--keep-csv",
+        action="store_true",
+        help="Keep the generated CSV output for inspection",
+    )
+    return parser
+
+
+def run_validate_command(argv: list[str]) -> int:
+    parser = build_validate_parser()
+    args = parser.parse_args(argv)
+
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "validate_fit.py"
+    if not script_path.exists():
+        print("❌ validate_fit.py not found. Expected at scripts/validate_fit.py")
+        return 1
+
+    command = [sys.executable, str(script_path), str(args.fit_file)]
+    if args.keep_csv:
+        command.append("--keep-csv")
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.stdout:
+        print(result.stdout.strip())
+    if result.stderr:
+        print(result.stderr.strip(), file=sys.stderr)
+    return result.returncode
+
+
 def format_workout_summary(workout_datetime: str, sets: list[dict], uploaded: bool) -> str:
     """Format a single workout for display."""
     dt = parse_iso(workout_datetime)
@@ -50,8 +87,12 @@ def format_workout_summary(workout_datetime: str, sets: list[dict], uploaded: bo
 
 
 def main(argv: list[str] | None = None) -> int:
+    args_list = argv if argv is not None else sys.argv[1:]
+    if args_list and args_list[0] == "validate":
+        return run_validate_command(args_list[1:])
+
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(args_list)
 
     if args.status:
         history = load_history()

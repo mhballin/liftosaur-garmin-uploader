@@ -17,6 +17,9 @@ build/
 dist/
 *.egg-info/
 
+# Local tools
+tools/
+
 # Test fixtures and outputs
 tests/fixtures/**/*.csv
 tests/output/**/*.fit
