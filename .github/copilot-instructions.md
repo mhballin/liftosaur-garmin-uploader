@@ -23,6 +23,30 @@ Key files:
 - `inspect_fit.py` - Utility for inspecting FIT file contents
 - `tests/fixtures/` - Sample CSV and FIT files for testing
 
+## FIT File Validation
+
+We use Garmin's official FIT SDK (FitCSVTool.jar) to validate generated FIT files before uploading to Garmin Connect.
+
+### Validation Workflow
+1. Generate FIT file from CSV
+2. Run validation: `python -m liftosaur_garmin validate <file.fit>`
+3. If validation fails, use comparison tool: `python scripts/compare_fits.py <generated.fit> <reference.fit>`
+4. Fix encoder based on differences
+5. Repeat until validation passes
+
+### Key Validation Files
+- `tools/FitCSVTool.jar` - Garmin's official FIT SDK validator (download manually from https://developer.garmin.com/fit/download/)
+- `scripts/validate_fit.py` - Validation wrapper script
+- `scripts/compare_fits.py` - Compares two FIT files to show differences
+- `tests/test_validation.py` - Automated validation tests for reference files
+- `docs/FIT_VALIDATION.md` - Detailed troubleshooting guide
+
+### Important Notes
+- **Always validate FIT files before committing** - run `python -m liftosaur_garmin validate` on generated files
+- Tests will skip validation checks if FitCSVTool.jar is not present
+- Use the comparison tool to debug why Garmin Connect rejects files
+- Validation checks: CRC integrity, message structure, field types, required fields
+
 ## Key Technical Details
 
 ### FIT File Encoding
@@ -101,6 +125,9 @@ Test manually by running the CLI with sample data. The goal is to verify the cor
 # Always set an explicit output path under tests/output to avoid default naming/location.
 # Use versioned names like test_v1.fit, test_v2.fit, etc.
 python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload --output tests/output/test_v1.fit
+
+# Validate the generated FIT file before committing changes.
+python -m liftosaur_garmin validate tests/output/test_v1.fit
 
 ```
 
