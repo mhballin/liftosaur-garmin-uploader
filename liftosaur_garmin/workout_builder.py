@@ -6,19 +6,26 @@ from datetime import datetime, timedelta
 
 from .exercise.duration import estimate_set_duration, lbs_to_kg
 from .exercise.mapping import lookup_exercise
-from .fit.constants import EVENT_TYPE_STOP_ALL, SET_TYPE_ACTIVE, SET_TYPE_REST
+from .fit.constants import EVENT_TYPE_START, EVENT_TYPE_STOP_ALL, SET_TYPE_ACTIVE, SET_TYPE_REST
 from .fit.encoder import FitEncoder
 from .fit.utils import parse_iso
 
 
 def build_fit_for_workout(sets: list[dict]) -> bytes:
-    """Build a FIT strength training activity from Liftosaur set rows."""
+    """Build a FIT strength training activity from Liftosaur set rows.
+    
+    Fix 1.5: Message ordering now follows the Garmin spec:
+    file_id → file_creator → device_info → event(start) → sport → 
+    workout → workout_step → exercise_title → set+split (interleaved) →
+    split_summary → lap → session → event(stop) → activity
+    """
     if not sets:
         raise ValueError("Workout has no sets to encode.")
 
     encoder = FitEncoder()
     workout_start = parse_iso(sets[0]["Workout DateTime"])
 
+    # Calculate workout end time
     last_time = workout_start
     for row in sets:
         completed = (row.get("Completed Reps Time") or "").strip()
@@ -30,10 +37,12 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
     workout_end = last_time + timedelta(seconds=30)
     total_elapsed = (workout_end - workout_start).total_seconds()
 
+    # Filter out warmup sets
     working_sets = [
         row for row in sets if (row.get("Is Warmup Set?") or "0").strip() != "1"
     ]
 
+    # Get unique exercises
     unique_exercises: list[tuple[str, int, int]] = []
     seen: set[str] = set()
     for row in working_sets:
@@ -43,17 +52,44 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
             category_id, exercise_id = lookup_exercise(name)
             unique_exercises.append((name, category_id, exercise_id))
 
-    encoder.write_file_id(workout_start)
-    encoder.write_file_creator()
-    encoder.write_activity(workout_end, total_elapsed)
-
     total_reps = sum(
         int(float(row.get("Completed Reps", 0) or 0)) for row in working_sets
     )
-    encoder.write_session(
-        workout_end, workout_start, total_elapsed, total_elapsed, total_reps
-    )
 
+    # ===== MESSAGE ORDERING PER GARMIN SPEC =====
+    
+    # 1. file_id
+    encoder.write_file_id(workout_start)
+    
+    # 2. file_creator
+    encoder.write_file_creator()
+    
+    # 3. device_info (creator device)
+    encoder.write_device_info(workout_start, device_index=0)
+    
+    # 4. event(start)
+    encoder.write_event(workout_start, event_type=EVENT_TYPE_START)
+    
+    # 5. sport
+    encoder.write_sport("Strength")
+    
+    # 6. workout
+    workout_name = sets[0].get("Day Name") or "Workout"
+    encoder.write_workout(workout_name, len(unique_exercises) * 2)
+    
+    # 7. workout_step (all steps before any sets)
+    step_index = 0
+    for _, category_id, exercise_id in unique_exercises:
+        encoder.write_workout_step(step_index, category_id, exercise_id, 10)
+        step_index += 1
+        encoder.write_workout_step(step_index, 0, 0, 0, is_rest=True)
+        step_index += 1
+    
+    # 8. exercise_title (all titles before any sets)
+    for index, (name, category_id, exercise_id) in enumerate(unique_exercises):
+        encoder.write_exercise_title(index, name, category_id, exercise_id)
+    
+    # 9. set + split (interleaved)
     prev_end_time: datetime | None = None
     prev_category_id = 65534
     prev_exercise_id = 0
@@ -79,6 +115,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
         set_duration = estimate_set_duration(reps, category_id)
         set_start = set_end - timedelta(seconds=set_duration)
 
+        # Insert rest period if there's a gap
         if prev_end_time and set_start > prev_end_time:
             rest_duration = (set_start - prev_end_time).total_seconds()
             if rest_duration > 5:
@@ -107,6 +144,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
                 splits.append((rest_duration, SET_TYPE_REST))
                 message_index += 1
 
+        # Write the active set
         encoder.write_set(
             ts=set_end,
             duration_s=set_duration,
@@ -137,43 +175,60 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
         prev_exercise_id = exercise_id
         set_count += 1
 
+    # 10. split_summary (Fix 1.4: Use keyword arguments for clarity)
     active_splits = [split for split in splits if split[1] == SET_TYPE_ACTIVE]
     rest_splits = [split for split in splits if split[1] == SET_TYPE_REST]
+    
     if active_splits:
         total_active_time = sum(split[0] for split in active_splits)
         encoder.write_split_summary(
-            workout_end, total_active_time, len(active_splits), SET_TYPE_ACTIVE, 0
+            ts=workout_end,
+            total_timer_s=total_active_time,
+            num_splits=len(active_splits),
+            split_type=SET_TYPE_ACTIVE,
+            avg_hr=64,
+            max_hr=74,
+            message_index=0  # Fix 1.4: Explicit keyword argument
         )
+    
     if rest_splits:
         total_rest_time = sum(split[0] for split in rest_splits)
         encoder.write_split_summary(
-            workout_end, total_rest_time, len(rest_splits), SET_TYPE_REST, 1
+            ts=workout_end,
+            total_timer_s=total_rest_time,
+            num_splits=len(rest_splits),
+            split_type=SET_TYPE_REST,
+            avg_hr=64,
+            max_hr=74,
+            message_index=1  # Fix 1.4: Explicit keyword argument
         )
-
-    encoder.write_event(workout_start)
+    
+    # 11. lap (Fix 1.6: Added required lap message)
+    encoder.write_lap(
+        ts=workout_end,
+        start_time=workout_start,
+        elapsed_s=total_elapsed,
+        timer_s=total_elapsed,
+        total_reps=total_reps
+    )
+    
+    # 12. session
+    encoder.write_session(
+        ts=workout_end,
+        start=workout_start,
+        elapsed_s=total_elapsed,
+        timer_s=total_elapsed,
+        total_reps=total_reps
+    )
+    
+    # 13. event(stop)
     encoder.write_event(workout_end, event_type=EVENT_TYPE_STOP_ALL)
-
-    encoder.write_device_info(workout_start, device_index=0)
+    
+    # 14. device_info (end)
     encoder.write_device_info(workout_end, device_index=0)
-    encoder.write_sport("Strength")
-
-    workout_name = sets[0].get("Day Name") or "Workout"
-    encoder.write_workout(workout_name, len(unique_exercises) * 2)
-
-    step_index = 0
-    for _, category_id, exercise_id in unique_exercises:
-        encoder.write_workout_step(step_index, category_id, exercise_id, 10)
-        step_index += 1
-        encoder.write_workout_step(step_index, 0, 0, 0, is_rest=True)
-        step_index += 1
-
-    current_time = workout_start
-    while current_time <= workout_end:
-        encoder.write_record(current_time, heart_rate=64)
-        current_time += timedelta(seconds=2)
-
-    for index, (name, category_id, exercise_id) in enumerate(unique_exercises):
-        encoder.write_exercise_title(index, name, category_id, exercise_id)
+    
+    # 15. activity
+    encoder.write_activity(workout_end, total_elapsed)
 
     return encoder.build()
 

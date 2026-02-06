@@ -14,5 +14,7 @@ dist/
 *.egg-info/
 
 # Local-only test fixtures with real data
-tests/fixtures/21779306834_ACTIVITY.fit
-tests/fixtures/liftosaur_2026-02-05.csv
+tests/fixtures/csv/liftosaur_*.csv
+
+# Local tree snapshot
+tree.txt
