@@ -10,8 +10,9 @@ class FitEncoder:
 
     def __init__(self):
         self._messages = bytearray()
-        self._definitions: dict[int, int] = {}
-        self._local_count = 0
+        # Changed: Track definitions by (global_num, field_signature) instead of just global_num
+        self._definitions: dict[tuple[int, tuple], int] = {}
+        self._local_count: int = 0
 
     def _next_local(self) -> int:
         n = self._local_count
@@ -26,7 +27,6 @@ class FitEncoder:
         for fdn, sz, bt in fields:
             data += struct.pack('<BBB', fdn, sz, bt)
         self._messages += data
-        self._definitions[global_num] = local
 
     def _data(self, local: int, values: bytes):
         """Write a data message."""
@@ -34,11 +34,22 @@ class FitEncoder:
 
     def _ensure_defined(self, global_num: int,
                         fields: list[tuple[int, int, int]]) -> int:
-        """Define message type if not already defined."""
-        if global_num not in self._definitions:
+        """Define message type if not already defined.
+        
+        Fix 1.1: Now tracks field signatures to allow different layouts
+        of the same message type (e.g., variable-length exercise names,
+        rest vs. non-rest workout steps).
+        """
+        # Create a hashable signature from the fields
+        field_signature = tuple(fields)
+        cache_key = (global_num, field_signature)
+        
+        if cache_key not in self._definitions:
             local = self._next_local()
             self._define(local, global_num, fields)
-        return self._definitions[global_num]
+            self._definitions[cache_key] = local
+        
+        return self._definitions[cache_key]
 
     def write_file_id(self, ts: datetime):
         """Message 0 - File ID"""
@@ -65,7 +76,7 @@ class FitEncoder:
         ]
         local = self._ensure_defined(34, fields)
         self._data(local, struct.pack(
-            '<IIHBBBBI', fit_timestamp(ts), int(timer_s * 1000),
+            '<IIHBBBI', fit_timestamp(ts), int(timer_s * 1000),
             num_sessions, 0, EVENT_TIMER, EVENT_TYPE_STOP_ALL,
             fit_timestamp(ts)))
 
@@ -89,6 +100,32 @@ class FitEncoder:
             3, 64, 74, 0, 16, 0
         ))
 
+    def write_lap(self, ts: datetime, start_time: datetime,
+                  elapsed_s: float, timer_s: float, total_reps: int = 0):
+        """Message 19 - Lap (Fix 1.6: Added required lap message)"""
+        fields = [
+            (253, 4, 134),  # timestamp
+            (2, 4, 134),    # start_time
+            (7, 4, 134),    # total_elapsed_time
+            (8, 4, 134),    # total_timer_time
+            (24, 1, 0),     # lap_trigger
+            (25, 1, 0),     # sport
+            (26, 1, 0),     # sub_sport
+            (32, 2, 132),   # total_cycles (reps)
+        ]
+        local = self._ensure_defined(19, fields)
+        self._data(local, struct.pack(
+            '<IIIIBBBH',
+            fit_timestamp(ts),
+            fit_timestamp(start_time),
+            int(elapsed_s * 1000),
+            int(timer_s * 1000),
+            0,  # manual trigger
+            SPORT_TRAINING,
+            SUB_SPORT_STRENGTH_TRAINING,
+            total_reps
+        ))
+
     def write_set(self, ts: datetime, duration_s: float, set_type: int,
                   category: int = 65534, exercise_name: int = 0,
                   reps: int = 0, weight_kg: float = 0.0,
@@ -107,7 +144,7 @@ class FitEncoder:
         w = int(weight_kg * 16) if weight_kg > 0 else 0
         
         self._data(local, struct.pack(
-            '<IIHHBI HHHHHH HHHH',
+            '<IIHHBIHHHHHHHHHHHHH',
             fit_timestamp(ts), int(duration_s * 1000),
             reps, w, set_type, st,
             category, category, category,
@@ -200,12 +237,18 @@ class FitEncoder:
 
     def write_workout_step(self, message_index: int, exercise_category: int,
                           exercise_name: int, reps: int, is_rest: bool = False):
-        """Message 27 - Workout Step"""
+        """Message 27 - Workout Step
+        
+        Fix 1.2: Both rest and non-rest paths now get separate definitions
+        thanks to the fixed _ensure_defined caching.
+        """
         if is_rest:
+            # Rest step has fewer fields
             fields = [(254, 2, 132), (0, 1, 0), (2, 1, 0), (4, 1, 0)]
             local = self._ensure_defined(27, fields)
             self._data(local, struct.pack('<HBBB', message_index, 0, 0, 1))
         else:
+            # Active step has more fields
             fields = [
                 (254, 2, 132), (1, 4, 134), (3, 4, 134), (0, 1, 0),
                 (2, 1, 0), (4, 1, 0), (5, 2, 132), (6, 2, 132),
@@ -218,7 +261,11 @@ class FitEncoder:
 
     def write_exercise_title(self, message_index: int, name: str,
                             exercise_category: int, exercise_name: int):
-        """Message 264 - Exercise Title"""
+        """Message 264 - Exercise Title
+        
+        Fix 1.3: Each exercise name gets its own definition
+        thanks to the fixed _ensure_defined caching.
+        """
         name_bytes = name.encode('utf-8') + b'\x00'
         fields = [
             (254, 2, 132), (0, len(name_bytes), 7),

@@ -6,7 +6,7 @@ from liftosaur_garmin.csv_parser import group_workouts, read_csv
 
 class TestCsvParser(unittest.TestCase):
     def test_read_csv_and_group(self) -> None:
-        csv_path = Path(__file__).parent / "fixtures" / "liftosaur_2026-02-05.csv"
+        csv_path = Path(__file__).parent / "fixtures" / "csv" / "sample.csv"
         rows = read_csv(csv_path)
         self.assertGreater(len(rows), 0)
 

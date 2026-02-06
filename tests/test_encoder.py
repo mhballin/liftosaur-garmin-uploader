@@ -7,7 +7,7 @@ from liftosaur_garmin.workout_builder import build_fit_for_workout
 
 class TestFitEncoder(unittest.TestCase):
     def test_build_fit_payload(self) -> None:
-        csv_path = Path(__file__).parent / "fixtures" / "liftosaur_2026-02-05.csv"
+        csv_path = Path(__file__).parent / "fixtures" / "csv" / "sample.csv"
         rows = read_csv(csv_path)
         workouts = group_workouts(rows)
         workout_sets = next(iter(workouts.values()))
