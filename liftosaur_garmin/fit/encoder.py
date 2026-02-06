@@ -62,6 +62,58 @@ class FitEncoder:
             '<BHHII', FILE_TYPE_ACTIVITY, MANUFACTURER_GARMIN,
             GARMIN_PRODUCT_FENIX_7, DEVICE_SERIAL, fit_timestamp(ts)))
 
+    def write_device_settings(self, ts: datetime):
+        """Message 2 - Device Settings"""
+        fields = [
+            (0, 1, 2), (1, 4, 134), (2, 4, 134), (4, 1, 0),
+            (5, 1, 1), (39, 4, 134),
+        ]
+        local = self._ensure_defined(2, fields)
+        self._data(local, struct.pack(
+            '<BIIBbI',
+            0,  # active_time_zone
+            0,  # utc_offset
+            0,  # time_offset
+            1,  # time_mode (24h)
+            0,  # time_zone_offset
+            fit_timestamp(ts),  # clock_time
+        ))
+
+    def write_user_profile(self):
+        """Message 3 - User Profile"""
+        name_bytes = b'User\x00'
+        fields = [
+            (0, len(name_bytes), 7), (1, 1, 0), (2, 1, 2), (3, 1, 2),
+            (4, 2, 132), (5, 1, 0), (8, 1, 2), (11, 1, 2),
+        ]
+        local = self._ensure_defined(3, fields)
+        self._data(local, struct.pack(
+            f'<{len(name_bytes)}sBBBHBBB',
+            name_bytes,
+            0,    # gender (female)
+            30,   # age
+            175,  # height (1.75m)
+            800,  # weight (80.0kg)
+            0,    # language (english)
+            60,   # resting_heart_rate
+            190,  # default_max_heart_rate
+        ))
+
+    def write_zones_target(self):
+        """Message 7 - Zones Target"""
+        fields = [
+            (1, 1, 2), (2, 1, 2), (3, 2, 132), (5, 1, 0), (7, 1, 0),
+        ]
+        local = self._ensure_defined(7, fields)
+        self._data(local, struct.pack(
+            '<BBHBB',
+            190,  # max_heart_rate
+            160,  # threshold_heart_rate
+            250,  # functional_threshold_power
+            1,    # hr_calc_type (percent_max_hr)
+            1,    # pwr_calc_type (percent_ftp)
+        ))
+
     def write_file_creator(self):
         """Message 49 - File Creator"""
         fields = [(0, 2, 132)]
@@ -132,6 +184,8 @@ class FitEncoder:
                   start_time: datetime | None = None,
                   message_index: int = 0, wkt_step_index: int = 0):
         """Message 225 - Set"""
+        if set_type == 0:
+            category = 65534
         st = fit_timestamp(start_time) if start_time else fit_timestamp(ts)
         fields = [
             (254, 4, 134), (0, 4, 134), (3, 2, 132), (4, 2, 132),
