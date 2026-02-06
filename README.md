@@ -10,3 +10,10 @@ python -m liftosaur_garmin --help
 
 pip install -r requirements.txt
 
+## Testing
+
+- Put sample CSV files in tests/fixtures/csv/
+- Run a manual test:
+	python -m liftosaur_garmin tests/fixtures/csv/your_file.csv --no-upload
+- Generated FIT outputs should go in tests/output/ (git-ignored)
+

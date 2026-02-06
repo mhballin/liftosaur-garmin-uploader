@@ -1,51 +1,27 @@
-\# Copilot Instructions — liftosaur-garmin-uploader
+# Copilot Instructions — liftosaur-garmin-uploader
 
 ## Project Overview
 
 This is a Python CLI tool that converts **Liftosaur** workout CSV exports into Garmin-compatible **.FIT files** and uploads them to **Garmin Connect**. Activities are spoofed as coming from a **Garmin Fenix 7** so Garmin Connect treats them as native device data (Training Effect, badges, challenges, etc.).
 
-## Architecture
+## Project Structure
 
-```
-liftosaur-garmin-uploader/
-├── README.md
-├── requirements.txt
-├── setup.py
-├── liftosaur-garmin-uploader.code-workspace
-├── tree.txt
-│
-├── liftosaur_garmin/
-│   ├── __init__.py
-│   ├── __main__.py              # Entry point (python -m liftosaur_garmin)
-│   ├── cli.py                   # argparse CLI interface
-│   ├── csv_parser.py            # Validates & groups Liftosaur CSV by workout date
-│   ├── workout_builder.py       # Orchestrates FIT file creation from parsed sets
-│   ├── uploader.py              # Garmin Connect auth & upload via garth
-│   ├── history.py               # JSON-based upload history tracking (~/.liftosaur_garmin/)
-│   │
-│   ├── fit/
-│   │   ├── __init__.py
-│   │   ├── constants.py         # FIT protocol constants, device IDs, sport types
-│   │   ├── encoder.py           # Custom binary FIT encoder (hand-rolled, NOT fit-tool)
-│   │   └── utils.py             # Timestamp helpers (ISO parse, FIT epoch conversion)
-│   │
-│   └── exercise/
-│       ├── __init__.py
-│       ├── mapping.py           # Exercise name → Garmin (category_id, exercise_name_id)
-│       └── duration.py          # Per-rep duration estimates, lb→kg conversion
-│
-└── tests/
-    ├── test_csv_parser.py
-    ├── test_encoder.py
-    └── fixtures/
-        ├── csv/
-        │   ├── sample.csv                          # Committed — sanitized test data
-        │   └── liftosaur_2026-02-05.csv            # Gitignored — real data for local testing
-        └── fit/
-            └── strength_workout_garmin_reference.fit  # Real Garmin FIT for comparison
+See `tree.txt` in the project root for the current directory structure.
 
-Note: __pycache__/ directories are gitignored and not shown above.
-```
+Key files:
+- `liftosaur_garmin/__main__.py` - Entry point (`python -m liftosaur_garmin`)
+- `liftosaur_garmin/cli.py` - argparse CLI interface
+- `liftosaur_garmin/csv_parser.py` - Validates & groups Liftosaur CSV by workout date
+- `liftosaur_garmin/workout_builder.py` - Orchestrates FIT file creation from parsed sets
+- `liftosaur_garmin/uploader.py` - Garmin Connect auth & upload via garth
+- `liftosaur_garmin/history.py` - JSON-based upload history tracking (~/.liftosaur_garmin/)
+- `liftosaur_garmin/fit/encoder.py` - Custom binary FIT encoder (hand-rolled, NOT fit-tool)
+- `liftosaur_garmin/fit/constants.py` - FIT protocol constants, device IDs, sport types
+- `liftosaur_garmin/fit/utils.py` - Timestamp helpers (ISO parse, FIT epoch conversion)
+- `liftosaur_garmin/exercise/mapping.py` - Exercise name → Garmin (category_id, exercise_name_id)
+- `liftosaur_garmin/exercise/duration.py` - Per-rep duration estimates, lb→kg conversion
+- `inspect_fit.py` - Utility for inspecting FIT file contents
+- `tests/fixtures/` - Sample CSV and FIT files for testing
 
 ## Key Technical Details
 
@@ -69,7 +45,7 @@ Note: __pycache__/ directories are gitignored and not shown above.
 ### CSV Format (Liftosaur Export)
 Required columns: `Workout DateTime`, `Exercise`, `Is Warmup Set?`, `Completed Reps`, `Completed Weight Value`, `Completed Weight Unit`, `Completed Reps Time`, `Day Name`
 - Workouts are grouped by `Workout DateTime`
-- Warmup sets (`Is Warmup Set? == '1'`) are currently skipped in FIT output
+- Warmup sets (`Is Warmup Set? == '1'`) are currently skipped in FIT output (intentional design decision)
 - Timestamps per set (`Completed Reps Time`) drive real timing and rest period calculation
 - Weights are in lbs in the CSV; converted to kg for FIT (protocol requirement)
 
@@ -96,41 +72,40 @@ Required columns: `Workout DateTime`, `Exercise`, `Is Warmup Set?`, `Completed R
 
 ## Current Focus
 
-Get the core pipeline working reliably: CSV → FIT → Garmin upload. Don't over-engineer I/O abstractions yet — the input source (local file vs iCloud vs HTTP POST) and output destination (local file vs Garmin API) will change later.
+Get the core pipeline working reliably: CSV → FIT → Garmin upload. Don't over-engineer I/O abstractions yet — the input source (local file vs URL vs HTTP POST) and output destination (local file vs Garmin API) will change later.
 
-## Future Features (Planned, not yet — don't build these)
+## Non-Goals (Do NOT Build These)
 
-- **Heart rate merging**: Pull HR data from Garmin Connect for the workout time window and embed it in the FIT file alongside set data. The user wears a Fenix 7 passively during lifting.
-- **iOS Shortcut + server automation**: Expose an HTTP endpoint so an iOS Shortcut can POST the CSV after Liftosaur export, triggering automatic conversion and upload (likely via Tailscale to a home server / iCloud → server file watcher).
+- **Don't refactor the custom FIT encoder** to use `fit-tool`, `fitparse`, or any third-party FIT writing library. The hand-rolled encoder is intentional.
+- **Don't add heart rate data merging** - this is not part of the project scope
+- **Don't build automated CSV fetching yet** - eventually the CSV will be fetched from a URL instead of a local file, but we'll tackle input abstraction after the core pipeline works
+- **Don't over-engineer I/O abstractions** before the core works - keep it simple
+- **Don't write automated tests (pytest)** - manual CLI testing is sufficient for now
 
+## Future Features (Planned for Later)
+
+- **Automated CSV fetching**: Eventually the CSV will be fetched from a URL instead of requiring a local file. This will enable automation workflows. Don't build this yet - we'll cross that bridge when we get there.
 
 ## Testing
 
 ### Strategy
-The goal is to get the core pipeline working end-to-end first (CSV → FIT → Garmin upload), then abstract I/O later (eventually CSV comes from iCloud, FIT uploads automatically).
+Test manually by running the CLI with sample data. The goal is to verify the core pipeline works end-to-end: CSV → FIT → Garmin upload.
 
 ### Test Data
 - `tests/fixtures/csv/sample.csv` — **committed**, sanitized fake data with same structure as real Liftosaur exports. Contains 2 workout days (Day 1 & Day 2) covering all edge cases: warmup sets, AMRAP final sets, bodyweight exercises (0 lb), completed vs required weight mismatches, superset-style overlapping timestamps, comma-containing exercise names.
 - `tests/fixtures/csv/liftosaur_2026-02-05.csv` — **gitignored**, real user data for manual/local testing only
 - `tests/fixtures/fit/strength_workout_garmin_reference.fit` — **committed**, a real Garmin-recorded strength training FIT file for byte-level comparison against encoder output
-- `tests/fixtures/README.md` — documents what each fixture is and how to use it
 
-### Test Layers (in priority order)
-1. **CSV parser** — correct grouping by `Workout DateTime`, warmup detection, column validation, handling of quoted comma-containing exercise names like `"Romanian Deadlift, Barbell"`
-2. **Exercise mapping** — all exercises in sample.csv resolve to correct Garmin category IDs, fuzzy match works, unknown exercises fall back to (65534, 0)
-3. **FIT encoder** — valid 14-byte header, CRC-16 correctness, correct message ordering, parseable by `fitparse` (dev dependency only)
-4. **End-to-end** — sample.csv in → FIT bytes out → validate with `fitparse` that it contains expected number of set messages, correct sport type, sane timestamps
-
-### Running Tests
+### Manual Testing
 ```bash
-# Run all tests
-pytest tests/
-
-# Run with real data (local only)
-LIFTOSAUR_CSV=tests/fixtures/csv/liftosaur_2026-02-05.csv pytest tests/
-
-# Generate a FIT file for manual inspection
+# Generate a FIT file without uploading (for inspection)
 python -m liftosaur_garmin tests/fixtures/csv/sample.csv --no-upload --output test_output.fit
+
+# Test with real data (local only, file is gitignored)
+python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload
+
+# Full upload test (requires Garmin Connect auth)
+python -m liftosaur_garmin tests/fixtures/csv/sample.csv
 ```
 
 ## Common Pitfalls
@@ -140,3 +115,10 @@ python -m liftosaur_garmin tests/fixtures/csv/sample.csv --no-upload --output te
 - Garmin Connect silently rejects malformed FIT files with no error message — always validate with `fitparse` or Garmin's FIT SDK validator during development
 - `garth` tokens expire — the uploader should handle re-auth gracefully
 - Liftosaur CSV encoding can vary — always open with `utf-8-sig` to handle BOM
+
+## Troubleshooting
+
+- **CSV parsing fails**: Check for missing required columns, ensure UTF-8 encoding with BOM handling
+- **Garmin upload rejected**: Validate FIT file structure, check message ordering, verify CRC-16 checksum
+- **Exercise not mapped**: Add to `exercise/mapping.py` with correct Garmin category_id from FIT SDK Profile
+- **Auth issues**: Delete `~/.garth/` and re-run with `--setup` flag to re-authenticate
