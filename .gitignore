@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.fit
+FitSDKRelease_*/
+FitSDKRelease_21.188.00.zip
 .venv/
 .env
 .env.*
@@ -12,9 +15,6 @@ __pycache__/
 build/
 dist/
 *.egg-info/
-
-# Local-only test fixtures with real data
-tests/fixtures/csv/liftosaur_*.csv
 
 # Local tree snapshot
 tree.txt

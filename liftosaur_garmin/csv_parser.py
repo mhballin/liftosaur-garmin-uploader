@@ -21,11 +21,6 @@ REQUIRED_CSV_COLUMNS = {
 }
 
 
-def parse_csv_rows(rows: Iterable[dict]) -> list[dict]:
-    """Validate and normalize CSV rows."""
-    return list(rows)
-
-
 def read_csv(filepath: Path) -> list[dict]:
     """Read and validate a Liftosaur CSV export."""
     if not filepath.exists():
