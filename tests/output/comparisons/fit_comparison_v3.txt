@@ -1,0 +1,191 @@
+=== MESSAGE TYPE COUNTS ===
+activity: file1=2, file2=2
+device_info: file1=98, file2=21
+device_settings: file1=2, file2=2
+event: file1=3, file2=7
+file_creator: file1=2, file2=2
+file_id: file1=2, file2=2
+record: file1=2880, file2=76
+session: file1=2, file2=2
+set: file1=29, file2=11
+sport: file1=2, file2=2
+time_in_zone: file1=0, file2=13
+timestamp_correlation: file1=0, file2=2
+training_settings: file1=0, file2=2
+unknown: file1=0, file2=148
+user_profile: file1=2, file2=2
+zones_target: file1=2, file2=2
+
+=== MISSING MESSAGE TYPES ===
+Only in file1: (none)
+Only in file2: time_in_zone, timestamp_correlation, training_settings, unknown
+
+=== SAMPLE DATA: activity ===
+File1:
+Local=11 | Message=activity | timestamp=1, total_timer_time=1, num_sessions=1, type=1, event=1, event_type=1, local_timestamp=1
+Local=11 | Message=activity | timestamp=1139229035, total_timer_time=2878.275 s, num_sessions=1, type=0, event=26, event_type=1, local_timestamp=1139229035
+File2:
+Local=2 | Message=activity | timestamp=1, total_timer_time=1, local_timestamp=1, unknown=40, num_sessions=1, type=1, event=1, event_type=1, event_group=1, unknown=1
+Local=2 | Message=activity | timestamp=1139326143, total_timer_time=111.102 s, local_timestamp=1139308143, num_sessions=1, type=0, event=26, event_type=1
+
+=== SAMPLE DATA: device_info ===
+File1:
+Local=5 | Message=device_info | timestamp=1, device_index=1, manufacturer=1, product=1, software_version=1, serial_number=1, source_type=1
+Local=5 | Message=device_info | timestamp=1139226157 s, manufacturer=1, garmin_product=3906, software_version=25.11, serial_number=0, source_type=1
+Local=5 | Message=device_info | timestamp=1139226187 s, manufacturer=1, garmin_product=3906, software_version=25.11, serial_number=0, source_type=1
+...
+Local=5 | Message=device_info | timestamp=1139228977 s, manufacturer=1, garmin_product=3906, software_version=25.11, serial_number=0, source_type=1
+Local=5 | Message=device_info | timestamp=1139229007 s, manufacturer=1, garmin_product=3906, software_version=25.11, serial_number=0, source_type=1
+Local=5 | Message=device_info | timestamp=1139229035 s, manufacturer=1, garmin_product=3906, software_version=25.11, serial_number=0, source_type=1
+File2:
+Local=7 | Message=device_info | timestamp=1, serial_number=1, cum_operating_time=1, unknown=1, unknown=1, unknown=1, unknown=32, unknown=1, unknown=1, manufacturer=1, product=1, software_version=1, battery_voltage=1, unknown=1, ant_device_number=1, device_index=1, device_type=1, hardware_version=1, unknown=1, battery_status=1, sensor_position=1, ant_transmission_type=1, ant_network=1, unknown=1, source_type=1, unknown=6, unknown=1, battery_level=1
+Local=7 | Message=device_info | timestamp=1139326143 s, serial_number=3409674450, manufacturer=1, garmin_product=3906, software_version=25.11, device_index=0, source_type=5
+Local=7 | Message=device_info | timestamp=1139326143 s, manufacturer=1, garmin_product=3906, software_version=25.11, device_index=1, local_device_type=4, source_type=5
+...
+Local=7 | Message=device_info | timestamp=1139326268 s, device_index=2, local_device_type=8, source_type=5
+Local=7 | Message=device_info | timestamp=1139326268 s, software_version=1.0, device_index=3, local_device_type=10, source_type=5
+Local=7 | Message=device_info | timestamp=1139326268 s, manufacturer=1, garmin_product=3906, software_version=35.1, device_index=4, local_device_type=12, source_type=5
+
+=== SAMPLE DATA: device_settings ===
+File1:
+Local=1 | Message=device_settings | active_time_zone=1, utc_offset=1, time_offset=1, time_mode=1, time_zone_offset=1, clock_time=1
+Local=1 | Message=device_settings | active_time_zone=0, utc_offset=0, time_offset=0 s, time_mode=1, time_zone_offset=0.0 hr, clock_time=1139226157
+File2:
+Local=11 | Message=device_settings | utc_offset=1, time_offset=1, auto_activity_detect=1, unknown=40, unknown=64, unknown=1, unknown=1, autosync_min_steps=1, autosync_min_time=1, active_time_zone=1, unknown=1, time_mode=1, time_zone_offset=1, unknown=1, unknown=1, unknown=1, backlight_mode=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, activity_tracker_enabled=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, move_alert_enabled=1, date_mode=1, unknown=1, unknown=1, unknown=1, display_orientation=1, mounting_side=1, unknown=13, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, lactate_threshold_autodetect_enabled=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, number_of_screens=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=15, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1
+Local=11 | Message=device_settings | utc_offset=0, time_offset=4294949296 s, auto_activity_detect=2147483647, unknown=0|33|4|16|54|6|3|2|50|52|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255|255, autosync_min_steps=2000 steps, autosync_min_time=240 minutes, active_time_zone=0, unknown=2, time_mode=0, time_zone_offset=0.0 hr, unknown=0, unknown=2, backlight_mode=3, unknown=8, unknown=20, unknown=50, unknown=0, unknown=1, unknown=1, unknown=254, unknown=1, unknown=0, activity_tracker_enabled=1, unknown=1, unknown=1, unknown=1, unknown=0, unknown=1, move_alert_enabled=0, date_mode=1, unknown=0, unknown=1, mounting_side=1, unknown=1|0|0|0|0|0|0|1|0|1|0|1|1, unknown=1, unknown=0, unknown=2, unknown=2, unknown=2, unknown=3, unknown=1, unknown=1, unknown=9, lactate_threshold_autodetect_enabled=1, unknown=1, unknown=1, unknown=0, unknown=0, unknown=0, unknown=1, unknown=3, unknown=1, unknown=2, unknown=0, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=0, unknown=2, unknown=20, unknown=8, unknown=1, unknown=1, unknown=2, unknown=0, unknown=1, unknown=2, unknown=0, unknown=1, unknown=0, unknown=0, unknown=0, unknown=1, unknown=2, unknown=0, unknown=150, unknown=1, unknown=0, unknown=1, unknown=1, unknown=0, unknown=0, unknown=1, unknown=0, unknown=0, unknown=1, unknown=40, unknown=0, unknown=8|7|11|13|9|12|5|6|14|10|1|4|0|2|3, unknown=5, unknown=8, unknown=0, unknown=0, unknown=0, unknown=0, unknown=1, unknown=0, unknown=2, unknown=3, unknown=0, unknown=1, unknown=0, unknown=1, unknown=0, unknown=3, unknown=1, unknown=0, unknown=1, unknown=0, unknown=1, unknown=1, unknown=0, unknown=2, unknown=2, unknown=2, unknown=2, unknown=2, unknown=2, unknown=0, unknown=1, unknown=7, unknown=1, unknown=1, unknown=1, unknown=1, unknown=2, unknown=1, unknown=1
+
+=== SAMPLE DATA: event ===
+File1:
+Local=6 | Message=event | timestamp=1, event=1, event_type=1, data16=1, data=1, event_group=1
+Local=6 | Message=event | timestamp=1139226157 s, event=0, event_type=0, data16=0, timer_trigger=0, event_group=0
+Local=6 | Message=event | timestamp=1139229035 s, event=0, event_type=9, data16=0, timer_trigger=0, event_group=0
+File2:
+Local=6 | Message=event | timestamp=1, data=1, event=1, event_type=1, event_group=1, unknown=1, unknown=1
+Local=6 | Message=event | timestamp=1139326143 s, timer_trigger=0, event=0, event_type=0, event_group=0
+Local=6 | Message=event | timestamp=1139326242 s, timer_trigger=0, event=0, event_type=4, event_group=0
+...
+Local=6 | Message=event | timestamp=1139326253 s, timer_trigger=0, event=0, event_type=4, event_group=0
+Local=6 | Message=event | timestamp=1139326260 s, timer_trigger=0, event=0, event_type=0, event_group=0
+Local=6 | Message=event | timestamp=1139326268 s, timer_trigger=0, event=0, event_type=4, event_group=0
+
+=== SAMPLE DATA: file_creator ===
+File1:
+Local=4 | Message=file_creator | software_version=1
+Local=4 | Message=file_creator | software_version=2511
+File2:
+Local=1 | Message=file_creator | unknown=20, software_version=1, hardware_version=1, unknown=1, unknown=1
+Local=1 | Message=file_creator | software_version=2511
+
+=== SAMPLE DATA: file_id ===
+File1:
+Local=0 | Message=file_id | type=1, manufacturer=1, product=1, serial_number=1, time_created=1
+Local=0 | Message=file_id | type=4, manufacturer=1, garmin_product=3906, serial_number=3409674450, time_created=1139226157
+File2:
+Local=0 | Message=file_id | serial_number=1, time_created=1, unknown=1, manufacturer=1, product=1, number=1, type=1
+Local=0 | Message=file_id | serial_number=3409674450, time_created=1139326143, manufacturer=1, garmin_product=3906, type=4
+
+=== SAMPLE DATA: record ===
+File1:
+Local=10 | Message=record | timestamp=1, distance=1, heart_rate=1
+Local=10 | Message=record | timestamp=1139226157 s, distance=0.0 m, heart_rate=64 bpm
+Local=10 | Message=record | timestamp=1139226158 s, distance=0.0 m, heart_rate=64 bpm
+...
+Local=10 | Message=record | timestamp=1139229033 s, distance=0.0 m, heart_rate=64 bpm
+Local=10 | Message=record | timestamp=1139229034 s, distance=0.0 m, heart_rate=64 bpm
+Local=10 | Message=record | timestamp=1139229035 s, distance=0.0 m, heart_rate=64 bpm
+File2:
+Local=1 | Message=record | timestamp=1, distance=1, unknown=1, heart_rate=1, unknown=1, unknown=1, unknown=1, unknown=1
+Local=1 | Message=record | timestamp=1139326143 s, distance=0.0 m, unknown=0, heart_rate=64 bpm, unknown=13, unknown=64, unknown=59
+Local=1 | Message=record | timestamp=1139326145 s, distance=0.0 m, unknown=14, heart_rate=65 bpm, unknown=32, unknown=65, unknown=59
+...
+Local=1 | Message=record | timestamp=1139326266 s, distance=0.0 m, unknown=59, heart_rate=99 bpm, unknown=76, unknown=99, unknown=59
+Local=1 | Message=record | timestamp=1139326267 s, distance=0.0 m, unknown=59, heart_rate=93 bpm, unknown=41, unknown=93, unknown=59
+Local=1 | Message=record | timestamp=1139326268 s, distance=0.0 m, unknown=59, heart_rate=91 bpm, unknown=25, unknown=91, unknown=59
+
+=== SAMPLE DATA: session ===
+File1:
+Local=9 | Message=session | timestamp=1, event=1, event_type=1, start_time=1, sport=1, sub_sport=1, total_elapsed_time=1, total_timer_time=1, total_distance=1, total_cycles=1, total_calories=1, avg_heart_rate=1, max_heart_rate=1, first_lap_index=1, num_laps=1, trigger=1, total_work=1
+Local=9 | Message=session | timestamp=1139229035 s, event=8, event_type=1, start_time=1139226157, sport=10, sub_sport=20, total_elapsed_time=2878.275 s, total_timer_time=2878.275 s, total_distance=0.0 m, total_cycles=254 cycles, total_calories=0 kcal, avg_heart_rate=64 bpm, max_heart_rate=74 bpm, first_lap_index=0, num_laps=1, trigger=0, total_work=0 J
+File2:
+Local=3 | Message=session | timestamp=1, start_time=1, start_position_lat=1, start_position_long=1, total_elapsed_time=1, total_timer_time=1, total_distance=1, total_cycles=1, nec_lat=1, nec_long=1, swc_lat=1, swc_long=1, end_position_lat=1, end_position_long=1, avg_stroke_count=1, total_work=1, total_moving_time=1, unknown=1, sport_profile_name=128, time_standing=1, avg_left_power_phase=4, avg_left_power_phase_peak=4, avg_right_power_phase=4, avg_right_power_phase_peak=4, avg_power_position=2, max_power_position=2, enhanced_avg_speed=1, enhanced_max_speed=1, unknown=1, training_load_peak=1, total_grit=1, avg_flow=1, unknown=1, unknown=1, message_index=1, total_calories=1, avg_power=1, max_power=1, total_ascent=1, total_descent=1, first_lap_index=1, num_laps=1, num_lengths=1, normalized_power=1, training_stress_score=1, intensity_factor=1, left_right_balance=1, avg_stroke_distance=1, pool_length=1, threshold_power=1, num_active_lengths=1, unknown=1, unknown=1, avg_vertical_oscillation=1, avg_stance_time_percent=1, avg_stance_time=1, unknown=1, unknown=1, unknown=1, stand_count=1, avg_vertical_ratio=1, avg_stance_time_balance=1, avg_step_length=1, unknown=1, unknown=1, unknown=1, enhanced_avg_respiration_rate=1, enhanced_max_respiration_rate=1, unknown=1, unknown=1, unknown=1, enhanced_min_respiration_rate=1, unknown=1, unknown=1, unknown=1, event=1, event_type=1, sport=1, sub_sport=1, avg_heart_rate=1, max_heart_rate=1, avg_cadence=1, max_cadence=1, total_training_effect=1, event_group=1, trigger=1, swim_stroke=1, pool_length_unit=1, avg_temperature=1, max_temperature=1, unknown=1, avg_fractional_cadence=1, max_fractional_cadence=1, total_fractional_cycles=1, avg_left_torque_effectiveness=1, avg_right_torque_effectiveness=1, avg_left_pedal_smoothness=1, avg_right_pedal_smoothness=1, avg_combined_pedal_smoothness=1, unknown=1, avg_left_pco=1, avg_right_pco=1, avg_cadence_position=2, max_cadence_position=2, total_anaerobic_training_effect=1, unknown=2, min_temperature=1, unknown=1, unknown=1, unknown=1, workout_feel=1, workout_rpe=1, avg_spo2=1, avg_stress=1, sdrr_hrv=1, rmssd_hrv=1, total_fractional_ascent=1, total_fractional_descent=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1
+Local=3 | Message=session | timestamp=1139326143 s, start_time=1139326143, total_elapsed_time=125.347 s, total_timer_time=111.102 s, total_distance=0.0 m, total_cycles=16 cycles, unknown=30809, sport_profile_name=Strength, enhanced_avg_speed=0.0 m/s, unknown=290330, training_load_peak=0.1732940673828125, message_index=0, total_calories=5 kcal, first_lap_index=0, num_laps=10, unknown=0, unknown=5, unknown=12, unknown=3, event=8, event_type=1, sport=10, sub_sport=20, avg_heart_rate=74 bpm, max_heart_rate=105 bpm, total_training_effect=0.0, trigger=0, unknown=0, total_anaerobic_training_effect=0.0, unknown=18|0, unknown=0, unknown=0, unknown=59, unknown=59
+
+=== SAMPLE DATA: set ===
+File1:
+Local=8 | Message=set | timestamp=1, duration=1, repetitions=1, weight=1, set_type=1, start_time=1, category=1, category_subtype=1, weight_display_unit=1, message_index=1, wkt_step_index=1
+Local=8 | Message=set | timestamp=1139226519, duration=10.5 s, repetitions=3, weight=45.3125 kg, set_type=1, start_time=1139226509, category=24, category_subtype=0, weight_display_unit=1, message_index=0, wkt_step_index=0
+Local=8 | Message=set | timestamp=1139226706, duration=186.715 s, repetitions=0, weight=0.0 kg, set_type=0, start_time=1139226519, category=24, category_subtype=0, weight_display_unit=1, message_index=1, wkt_step_index=0
+...
+Local=8 | Message=set | timestamp=1139228830, duration=6.355 s, repetitions=30, weight=0.0 kg, set_type=1, start_time=1139228824, category=13, category_subtype=0, weight_display_unit=1, message_index=25, wkt_step_index=0
+Local=8 | Message=set | timestamp=1139228905, duration=75.179 s, repetitions=26, weight=24.9375 kg, set_type=1, start_time=1139228830, category=23, category_subtype=0, weight_display_unit=1, message_index=26, wkt_step_index=0
+Local=8 | Message=set | timestamp=1139229005, duration=99.802 s, repetitions=35, weight=0.0 kg, set_type=1, start_time=1139228905, category=13, category_subtype=0, weight_display_unit=1, message_index=27, wkt_step_index=0
+File2:
+Local=2 | Message=set | timestamp=1, duration=1, start_time=1, repetitions=1, weight=1, category=3, category_subtype=3, weight_display_unit=1, message_index=1, wkt_step_index=1, unknown=1, unknown=1, unknown=1, unknown=3, set_type=1
+Local=2 | Message=set | timestamp=1139326143, duration=4.849 s, start_time=1139326143, repetitions=5, weight=45.375 kg, category=65534|7|0, message_index=0, unknown=0, unknown=255|0|0, set_type=1
+Local=2 | Message=set | timestamp=1139326143, duration=8.964 s, start_time=1139326147, message_index=1, set_type=0
+...
+Local=2 | Message=set | timestamp=1139326143, duration=16.095 s, start_time=1139326213, message_index=7, set_type=0
+Local=2 | Message=set | timestamp=1139326143, duration=9.292 s, start_time=1139326229, repetitions=1, weight=408.25 kg, category=65534|7|0, message_index=8, unknown=4, unknown=255|0|0, set_type=1
+Local=2 | Message=set | timestamp=1139326143, duration=15.377 s, start_time=1139326238, message_index=9, set_type=0
+
+=== SAMPLE DATA: sport ===
+File1:
+Local=7 | Message=sport | sport=1, sub_sport=1, name=9
+Local=7 | Message=sport | sport=10, sub_sport=20, name=Strength
+File2:
+Local=14 | Message=sport | name=128, unknown=4, sport=1, sub_sport=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=3, unknown=1
+Local=14 | Message=sport | name=Strength, unknown=255|85|0|255, sport=10, sub_sport=20, unknown=1, unknown=0, unknown=0, unknown=1, unknown=0, unknown=1
+
+=== SAMPLE DATA: time_in_zone ===
+File1:
+(no rows)
+File2:
+Local=4 | Message=time_in_zone | timestamp=1, time_in_hr_zone=7, time_in_power_zone=8, power_zone_high_boundary=8, reference_mesg=1, reference_index=1, functional_threshold_power=1, hr_zone_high_boundary=6, hr_calc_type=1, max_heart_rate=1, resting_heart_rate=1, threshold_heart_rate=1, pwr_calc_type=1
+Local=4 | Message=time_in_zone | timestamp=1139326143 s, time_in_hr_zone=106.386|0.0|0.0|0.0|0.0|0.0|0.0 s, reference_mesg=18, reference_index=0, hr_zone_high_boundary=109|127|146|167|188|209 bpm, hr_calc_type=1, max_heart_rate=209, resting_heart_rate=52, threshold_heart_rate=178
+Local=3 | Message=time_in_zone | timestamp=1, time_in_hr_zone=7, time_in_power_zone=8, power_zone_high_boundary=8, reference_mesg=1, reference_index=1, functional_threshold_power=1, hr_zone_high_boundary=6, hr_calc_type=1, max_heart_rate=1, resting_heart_rate=1, threshold_heart_rate=1, pwr_calc_type=1
+...
+Local=3 | Message=time_in_zone | timestamp=1139326143 s, time_in_hr_zone=15.791|0.0|0.0|0.0|0.0|0.0|0.0 s, reference_mesg=225, reference_index=7, hr_zone_high_boundary=109|127|146|167|188|209 bpm, hr_calc_type=1, max_heart_rate=209, resting_heart_rate=52, threshold_heart_rate=178
+Local=3 | Message=time_in_zone | timestamp=1139326143 s, time_in_hr_zone=8.697|0.0|0.0|0.0|0.0|0.0|0.0 s, reference_mesg=225, reference_index=8, hr_zone_high_boundary=109|127|146|167|188|209 bpm, hr_calc_type=1, max_heart_rate=209, resting_heart_rate=52, threshold_heart_rate=178
+Local=3 | Message=time_in_zone | timestamp=1139326143 s, time_in_hr_zone=15.357|0.0|0.0|0.0|0.0|0.0|0.0 s, reference_mesg=225, reference_index=9, hr_zone_high_boundary=109|127|146|167|188|209 bpm, hr_calc_type=1, max_heart_rate=209, resting_heart_rate=52, threshold_heart_rate=178
+
+=== SAMPLE DATA: timestamp_correlation ===
+File1:
+(no rows)
+File2:
+Local=5 | Message=timestamp_correlation | timestamp=1, system_timestamp=1, local_timestamp=1
+Local=5 | Message=timestamp_correlation | timestamp=1139326143 s, system_timestamp=1139326143 s, local_timestamp=1139308143 s
+
+=== SAMPLE DATA: training_settings ===
+File1:
+(no rows)
+File2:
+Local=15 | Message=training_settings | unknown=1, unknown=1, unknown=1, target_distance=1, target_time=1, unknown=1, unknown=1, unknown=1, unknown=4, unknown=4, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, target_speed=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1
+Local=15 | Message=training_settings | unknown=160934, target_distance=1609.34 m, unknown=15240, unknown=0, unknown=6706, unknown=1341, target_speed=6.706 m/s, unknown=77, unknown=0, unknown=6, unknown=0, unknown=10, unknown=0, unknown=0, unknown=0, unknown=0, unknown=1, unknown=0, unknown=0, unknown=0, unknown=1, unknown=0, unknown=0, unknown=0, unknown=1, unknown=30, unknown=1, unknown=0, unknown=1, unknown=0, unknown=1, unknown=0, unknown=1, unknown=0, unknown=3, unknown=1, unknown=1, unknown=2, unknown=1, unknown=0, unknown=0, unknown=0, unknown=0, unknown=0
+
+=== SAMPLE DATA: unknown ===
+File1:
+(no rows)
+File2:
+Local=2 | Message=unknown | unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1
+Local=2 | Message=unknown | unknown=1139326272, unknown=11357, unknown=11357, unknown=309159, unknown=327680, unknown=0, unknown=0, unknown=2562917, unknown=11357, unknown=0, unknown=0, unknown=0, unknown=1310720000, unknown=129920, unknown=0, unknown=11357, unknown=0, unknown=11357, unknown=0, unknown=1139308272, unknown=0, unknown=570, unknown=62407, unknown=0, unknown=89, unknown=0, unknown=0, unknown=0, unknown=0, unknown=93, unknown=0, unknown=0, unknown=0, unknown=10, unknown=20, unknown=0, unknown=0, unknown=1, unknown=0, unknown=0, unknown=18, unknown=0, unknown=59, unknown=-100, unknown=-1, unknown=0, unknown=0, unknown=0, unknown=5, unknown=100, unknown=100, unknown=0, unknown=0, unknown=11, unknown=0, unknown=74, unknown=93, unknown=0
+Local=2 | Message=unknown | unknown=1, unknown=1, unknown=1, unknown=1
+...
+Local=2 | Message=unknown | unknown=76|137|246|50
+Local=2 | Message=unknown | unknown=54|48|90|56
+Local=3 | Message=unknown | unknown=1139326272, unknown=8, unknown=101504, unknown=4, unknown=10, unknown=1, unknown=2, unknown=0
+
+=== SAMPLE DATA: user_profile ===
+File1:
+Local=2 | Message=user_profile | friendly_name=5, gender=1, age=1, height=1, weight=1, language=1, resting_heart_rate=1, default_max_heart_rate=1
+Local=2 | Message=user_profile | friendly_name=User, gender=0, age=30 years, height=1.75 m, weight=80.0 kg, language=0, resting_heart_rate=60 bpm, default_max_heart_rate=190 bpm
+File2:
+Local=12 | Message=user_profile | wake_time=1, sleep_time=1, unknown=1, unknown=1, unknown=252, weight=1, user_running_step_length=1, user_walking_step_length=1, unknown=1, unknown=1, unknown=1, gender=1, height=1, language=1, elev_setting=1, weight_setting=1, resting_heart_rate=1, hr_setting=1, speed_setting=1, dist_setting=1, activity_class=1, position_setting=1, temperature_setting=1, unknown=1, height_setting=1, unknown=1, unknown=1, unknown=1, unknown=1, depth_setting=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=7, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1
+Local=12 | Message=user_profile | wake_time=21600, sleep_time=84600, unknown=1137870934, unknown=1116074385, unknown=Mike Ballin, weight=93.9 kg, user_walking_step_length=0.693 m, unknown=117, gender=1, height=1.8 m, language=0, elev_setting=1, weight_setting=1, resting_heart_rate=52 bpm, hr_setting=1, speed_setting=1, dist_setting=1, activity_class=50, position_setting=2, temperature_setting=1, unknown=98, height_setting=1, unknown=0, unknown=0, unknown=1, unknown=11, depth_setting=1, unknown=0, unknown=2, unknown=4, unknown=0, unknown=1, unknown=0|0|0|2|2|0|0, unknown=1, unknown=1, unknown=0, unknown=5
+
+=== SAMPLE DATA: zones_target ===
+File1:
+Local=3 | Message=zones_target | max_heart_rate=1, threshold_heart_rate=1, functional_threshold_power=1, hr_calc_type=1, pwr_calc_type=1
+Local=3 | Message=zones_target | max_heart_rate=190, threshold_heart_rate=160, functional_threshold_power=250, hr_calc_type=1, pwr_calc_type=1
+File2:
+Local=0 | Message=zones_target | unknown=1, unknown=1, functional_threshold_power=1, unknown=1, unknown=1, max_heart_rate=1, threshold_heart_rate=1, hr_calc_type=1, pwr_calc_type=1, unknown=1, unknown=1, unknown=1, unknown=1, unknown=1
+Local=0 | Message=zones_target | unknown=0, max_heart_rate=209, threshold_heart_rate=178, hr_calc_type=1, pwr_calc_type=1, unknown=0, unknown=1, unknown=1, unknown=1, unknown=7
