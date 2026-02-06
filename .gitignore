@@ -6,6 +6,7 @@ __pycache__/
 FitSDKRelease_*/
 FitSDKRelease_21.188.00.zip
 .venv/
+venv/
 .env
 .env.*
 .pytest_cache/

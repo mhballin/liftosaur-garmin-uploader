@@ -92,20 +92,16 @@ Get the core pipeline working reliably: CSV → FIT → Garmin upload. Don't ove
 Test manually by running the CLI with sample data. The goal is to verify the core pipeline works end-to-end: CSV → FIT → Garmin upload.
 
 ### Test Data
-- `tests/fixtures/csv/sample.csv` — **committed**, sanitized fake data with same structure as real Liftosaur exports. Contains 2 workout days (Day 1 & Day 2) covering all edge cases: warmup sets, AMRAP final sets, bodyweight exercises (0 lb), completed vs required weight mismatches, superset-style overlapping timestamps, comma-containing exercise names.
 - `tests/fixtures/csv/liftosaur_2026-02-05.csv` — **gitignored**, real user data for manual/local testing only
-- `tests/fixtures/fit/strength_workout_garmin_reference.fit` — **committed**, a real Garmin-recorded strength training FIT file for byte-level comparison against encoder output
+- `tests/fixtures/fit/**` — **gitignored**, real Garmin-recorded FIT files for byte-level comparison
 
 ### Manual Testing
 ```bash
-# Generate a FIT file without uploading (for inspection)
-python -m liftosaur_garmin tests/fixtures/csv/sample.csv --no-upload --output test_output.fit
-
 # Test with real data (local only, file is gitignored)
-python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload
+# Always set an explicit output path under tests/output to avoid default naming/location.
+# Use versioned names like test_v1.fit, test_v2.fit, etc.
+python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload --output tests/output/test_v1.fit
 
-# Full upload test (requires Garmin Connect auth)
-python -m liftosaur_garmin tests/fixtures/csv/sample.csv
 ```
 
 ## Common Pitfalls
