@@ -6,7 +6,14 @@ from datetime import datetime, timedelta
 
 from .exercise.duration import estimate_set_duration, lbs_to_kg
 from .exercise.mapping import lookup_exercise
-from .fit.constants import EVENT_TYPE_START, EVENT_TYPE_STOP_ALL, SET_TYPE_ACTIVE, SET_TYPE_REST
+from .fit.constants import (
+    EVENT_TYPE_START,
+    EVENT_TYPE_STOP_ALL,
+    SET_TYPE_ACTIVE,
+    SET_TYPE_REST,
+    SPLIT_TYPE_ACTIVE,
+    SPLIT_TYPE_REST,
+)
 from .fit.encoder import FitEncoder
 from .fit.utils import parse_iso
 
@@ -79,7 +86,9 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
     
     # 7. workout_step (all steps before any sets)
     step_index = 0
-    for _, category_id, exercise_id in unique_exercises:
+    exercise_step_index: dict[str, int] = {}
+    for name, category_id, exercise_id in unique_exercises:
+        exercise_step_index[name] = step_index
         encoder.write_workout_step(step_index, category_id, exercise_id, 10)
         step_index += 1
         encoder.write_workout_step(step_index, 0, 0, 0, is_rest=True)
@@ -93,9 +102,9 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
     prev_end_time: datetime | None = None
     prev_category_id = 65534
     prev_exercise_id = 0
+    prev_exercise_name: str | None = None
     set_count = 0
     message_index = 0
-    wkt_step_index = 0
     splits: list[tuple[float, int]] = []
 
     for row in working_sets:
@@ -113,9 +122,20 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
             set_end = workout_start + timedelta(minutes=set_count * 2)
 
         set_duration = estimate_set_duration(reps, category_id)
-        set_start = set_end - timedelta(seconds=set_duration)
+        set_start_estimated = set_end - timedelta(seconds=set_duration)
+
+        if prev_end_time:
+            set_start = max(set_start_estimated, prev_end_time)
+            set_duration = (set_end - set_start).total_seconds()
+        else:
+            set_start = set_start_estimated
 
         # Insert rest period if there's a gap
+        base_step_index = exercise_step_index.get(exercise_name, 0)
+        rest_step_index = base_step_index
+        if prev_exercise_name:
+            rest_step_index = exercise_step_index.get(prev_exercise_name, base_step_index)
+
         if prev_end_time and set_start > prev_end_time:
             rest_duration = (set_start - prev_end_time).total_seconds()
             if rest_duration > 5:
@@ -129,8 +149,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
                     weight_kg=0,
                     start_time=prev_end_time,
                     message_index=message_index,
-                    wkt_step_index=wkt_step_index + 1,
-                    set_counter=set_count,
+                    wkt_step_index=rest_step_index + 1,
                 )
                 encoder.write_split(
                     ts=set_start,
@@ -138,8 +157,9 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
                     end_time=set_start,
                     elapsed_s=rest_duration,
                     timer_s=rest_duration,
-                    split_type=SET_TYPE_REST,
+                    split_type=SPLIT_TYPE_REST,
                     message_index=message_index,
+                    total_ascent=0,
                 )
                 splits.append((rest_duration, SET_TYPE_REST))
                 message_index += 1
@@ -155,8 +175,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
             weight_kg=weight_kg,
             start_time=set_start,
             message_index=message_index,
-            wkt_step_index=wkt_step_index,
-            set_counter=set_count,
+            wkt_step_index=base_step_index,
         )
         encoder.write_split(
             ts=set_end,
@@ -164,8 +183,9 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
             end_time=set_end,
             elapsed_s=set_duration,
             timer_s=set_duration,
-            split_type=SET_TYPE_ACTIVE,
+            split_type=SPLIT_TYPE_ACTIVE,
             message_index=message_index,
+            total_ascent=1,
         )
         splits.append((set_duration, SET_TYPE_ACTIVE))
         message_index += 1
@@ -173,6 +193,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
         prev_end_time = set_end
         prev_category_id = category_id
         prev_exercise_id = exercise_id
+        prev_exercise_name = exercise_name
         set_count += 1
 
     # 10. split_summary (Fix 1.4: Use keyword arguments for clarity)
@@ -185,7 +206,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
             ts=workout_end,
             total_timer_s=total_active_time,
             num_splits=len(active_splits),
-            split_type=SET_TYPE_ACTIVE,
+            split_type=SPLIT_TYPE_ACTIVE,
             avg_hr=64,
             max_hr=74,
             message_index=0  # Fix 1.4: Explicit keyword argument
@@ -197,7 +218,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
             ts=workout_end,
             total_timer_s=total_rest_time,
             num_splits=len(rest_splits),
-            split_type=SET_TYPE_REST,
+            split_type=SPLIT_TYPE_REST,
             avg_hr=64,
             max_hr=74,
             message_index=1  # Fix 1.4: Explicit keyword argument
