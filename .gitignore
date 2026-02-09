@@ -20,9 +20,10 @@ dist/
 # Local tools
 tools/
 
-# Test fixtures and outputs
+# Test fixtures and output
 tests/fixtures/**/*.csv
 tests/output/**/*.fit
+tests/output/
 
 # Local tree snapshot
 tree.txt
