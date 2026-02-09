@@ -119,6 +119,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
     prev_exercise_id: int = 0
     set_count: int = 0
     message_index: int = 0
+    active_timer_s: float = 0.0
 
     for row in working_sets:
         exercise_name = (row.get("Exercise") or "Unknown").strip()
@@ -172,6 +173,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
             wkt_step_index=0,
         )
         message_index += 1
+        active_timer_s += set_duration
 
         prev_end_time = set_end
         prev_category_id = category_id
@@ -179,6 +181,8 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
         set_count += 1
 
     # 12. session
+    # NOTE: timer_s = total_elapsed so the header shows full workout duration.
+    # Garmin calculates Work Time / Rest Time from individual set messages.
     encoder.write_session(
         ts=workout_end,
         start=workout_start,
