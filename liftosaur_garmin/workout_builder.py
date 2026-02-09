@@ -48,7 +48,9 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
         name = (row.get("Exercise") or "").strip()
         if name and name not in seen:
             seen.add(name)
-            category_id, exercise_id = lookup_exercise(name)
+            category_id, exercise_id = lookup_exercise(
+                name, target_muscles=row.get("Target Muscles")
+            )
             unique_exercises.append((name, category_id, exercise_id))
 
     total_reps = sum(
@@ -95,7 +97,9 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
         weight_unit = (row.get("Completed Weight Unit") or "lb").strip()
         weight_kg = lbs_to_kg(weight_value) if weight_unit == "lb" else weight_value
 
-        category_id, exercise_id = lookup_exercise(exercise_name)
+        category_id, exercise_id = lookup_exercise(
+            exercise_name, target_muscles=row.get("Target Muscles")
+        )
         completed = (row.get("Completed Reps Time") or "").strip()
         if completed:
             set_end = parse_iso(completed)
