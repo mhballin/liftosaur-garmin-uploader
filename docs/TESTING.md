@@ -15,7 +15,7 @@ python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-uplo
 To create the next available `test_vN.fit`, run this two-step snippet in the terminal. It scans the existing files and increments the highest version by 1.
 
 ```bash
-python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload --output tests/output/test_v3.fit
+python -m liftosaur_garmin tests/fixtures/csv/sample.csv --no-upload --output tests/output/test_v3.fit
 ```
 
 ## Validate the FIT File
