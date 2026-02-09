@@ -53,7 +53,10 @@ def parse_csv_sets(csv_path: Path, include_warmups: bool) -> list[dict[str, Any]
         weight_value = float(row.get("Completed Weight Value", 0) or 0)
         weight_unit = (row.get("Completed Weight Unit") or "lb").strip()
         weight_kg = lbs_to_kg(weight_value) if weight_unit == "lb" else weight_value
-        category_id, exercise_id = lookup_exercise(name or "Unknown")
+        category_id, exercise_id = lookup_exercise(
+            name or "Unknown",
+            target_muscles=row.get("Target Muscles"),
+        )
 
         sets.append(
             {
