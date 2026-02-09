@@ -7,12 +7,14 @@ import subprocess
 import sys
 from collections import OrderedDict
 from pathlib import Path
+import tempfile
 
 from .csv_parser import group_workouts, parse_csv
 from .fit.utils import parse_iso
 from .history import get_new_workouts, load_history, mark_uploaded
 from .uploader import garmin_setup, upload_to_garmin
 from .workout_builder import build_fit_for_workout
+from .validation import validate_fit_file
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,6 +32,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--date", help="Workout date filter (YYYY-MM-DD)")
     parser.add_argument("--all", action="store_true", help="Upload all new workouts")
     parser.add_argument("--output", "-o", help="Output FIT file path")
+    parser.add_argument(
+        "--skip-validation",
+        action="store_true",
+        help="Skip FIT validation (FitCSVTool) before upload",
+    )
     return parser
 
 
@@ -50,22 +57,32 @@ def build_validate_parser() -> argparse.ArgumentParser:
 def run_validate_command(argv: list[str]) -> int:
     parser = build_validate_parser()
     args = parser.parse_args(argv)
-
-    script_path = Path(__file__).resolve().parents[1] / "scripts" / "validate_fit.py"
-    if not script_path.exists():
-        print("❌ validate_fit.py not found. Expected at scripts/validate_fit.py")
+    fit_path = Path(args.fit_file)
+    if not fit_path.exists():
+        print(f"✗ FIT file not found: {fit_path}")
         return 1
 
-    command = [sys.executable, str(script_path), str(args.fit_file)]
-    if args.keep_csv:
-        command.append("--keep-csv")
+    status, result = validate_fit_file(fit_path, keep_csv=args.keep_csv)
+    if status is None:
+        print("✗ FitCSVTool.jar not found.")
+        print(
+            "Please download the Garmin FIT SDK and copy tools/FitCSVTool.jar into this project."
+        )
+        return 2
 
-    result = subprocess.run(command, capture_output=True, text=True)
-    if result.stdout:
+    if status:
+        print("✓ FIT file is valid")
+        return 0
+
+    # validation failed
+    print("✗ FIT file validation failed")
+    if result and result.stdout:
+        print("--- stdout ---")
         print(result.stdout.strip())
-    if result.stderr:
-        print(result.stderr.strip(), file=sys.stderr)
-    return result.returncode
+    if result and result.stderr:
+        print("--- stderr ---")
+        print(result.stderr.strip())
+    return 1
 
 
 def format_workout_summary(workout_datetime: str, sets: list[dict], uploaded: bool) -> str:
@@ -197,21 +214,89 @@ def main(argv: list[str] | None = None) -> int:
 
         fit_bytes = build_fit_for_workout(sets)
         print(f"   FIT: {len(fit_bytes)} bytes")
-
         output_path = Path(args.output) if args.output else None
+        wrote_temp_fit = False
+        temp_fit_path: Path | None = None
+
         if output_path or args.no_upload:
             output_path = output_path or Path(f"liftosaur_{dt.strftime('%Y%m%d_%H%M')}.fit")
             output_path.write_bytes(fit_bytes)
             print(f"   💾 Saved: {output_path}")
+            file_for_validation = output_path
+        else:
+            # No explicit output requested; write to a temporary file for validation/upload
+            tmp = tempfile.NamedTemporaryFile(prefix="liftosaur_", suffix=".fit", delete=False)
+            temp_fit_path = Path(tmp.name)
+            tmp.close()
+            temp_fit_path.write_bytes(fit_bytes)
+            wrote_temp_fit = True
+            file_for_validation = temp_fit_path
 
-        if not args.no_upload:
+        # Run validation unless explicitly skipped. Validation always runs after encoding,
+        # even when --no-upload is provided.
+        if args.skip_validation:
+            print("   ⚠️  Skipping FIT validation (user requested)")
+            validation_ok = True
+            validation_result = None
+            validation_tool_missing = False
+        else:
+            print("   🔍 Validating FIT file...")
+            status, result = validate_fit_file(file_for_validation)
+            validation_result = result
+            if status is None:
+                validation_ok = True
+                validation_tool_missing = True
+                print("   ⚠️ FitCSVTool.jar not found, skipping validation")
+            elif status:
+                validation_ok = True
+                validation_tool_missing = False
+                print("   ✅ FIT file passed SDK validation")
+            else:
+                validation_ok = False
+                validation_tool_missing = False
+                print("   ❌ FIT file failed validation:")
+                if result and result.stdout:
+                    print("--- stdout ---")
+                    print(result.stdout.strip())
+                if result and result.stderr:
+                    print("--- stderr ---")
+                    print(result.stderr.strip())
+
+        if not validation_ok:
+            if wrote_temp_fit and temp_fit_path is not None:
+                try:
+                    temp_fit_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            return 1
+
+        # If --no-upload was provided, we stop here after validation (or skipping it).
+        if args.no_upload:
+            if wrote_temp_fit and temp_fit_path is not None:
+                try:
+                    temp_fit_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            print("   ⚠️  --no-upload specified; not uploading")
+        else:
             print("   ☁️  Uploading...")
             try:
                 upload_to_garmin(fit_bytes)
                 mark_uploaded(workout_datetime, sets)
             except RuntimeError as exc:
                 print(f"   ❌ {exc}")
+                if wrote_temp_fit and temp_fit_path is not None:
+                    try:
+                        temp_fit_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
                 return 1
+
+            if wrote_temp_fit and temp_fit_path is not None:
+                try:
+                    temp_fit_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         print()
 
