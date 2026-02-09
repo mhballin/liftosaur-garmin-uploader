@@ -4,6 +4,10 @@ from datetime import datetime
 from .constants import *
 from .utils import fit_timestamp
 
+# Split type enum values (different from set_type!)
+SPLIT_TYPE_ACTIVE_SET = 17
+SPLIT_TYPE_REST_SET = 18
+
 
 class FitEncoder:
     """Minimal FIT file encoder for strength training activities."""
@@ -154,7 +158,7 @@ class FitEncoder:
 
     def write_lap(self, ts: datetime, start_time: datetime,
                   elapsed_s: float, timer_s: float, total_reps: int = 0):
-        """Message 19 - Lap (Fix 1.6: Added required lap message)"""
+        """Message 19 - Lap"""
         fields = [
             (253, 4, 134),  # timestamp
             (2, 4, 134),    # start_time
@@ -183,66 +187,133 @@ class FitEncoder:
                   reps: int = 0, weight_kg: float = 0.0,
                   start_time: datetime | None = None,
                   message_index: int = 0, wkt_step_index: int = 0):
-        """Message 225 - Set"""
-        if set_type == 0:
-            category = 65534
+        """Message 225 - Set
+        
+        Rest sets use a simpler field definition (no category/exercise/weight
+        fields) because Garmin Connect rejects rest sets that include those.
+        """
         st = fit_timestamp(start_time) if start_time else fit_timestamp(ts)
-        fields = [
-            (254, 4, 134), (0, 4, 134), (3, 2, 132), (4, 2, 132),
-            (5, 1, 0), (6, 4, 134), (7, 2, 132), (8, 2, 132),
-            (9, 1, 0), (10, 2, 132), (11, 2, 132),
-        ]
-        local = self._ensure_defined(225, fields)
-        w = int(weight_kg * 16) if weight_kg > 0 else 0
-        weight_unit = 1
-        self._data(local, struct.pack(
-            '<IIHHBIHHBHH',
-            fit_timestamp(ts), int(duration_s * 1000),
-            reps, w, set_type, st, category, exercise_name,
-            weight_unit, message_index, wkt_step_index
-        ))
+
+        if set_type == SET_TYPE_REST:
+            # Rest sets: only timestamp, duration, set_type, start_time, message_index
+            fields = [
+                (254, 4, 134),  # timestamp
+                (0, 4, 134),    # duration
+                (5, 1, 0),      # set_type
+                (6, 4, 134),    # start_time
+                (11, 2, 132),   # message_index
+            ]
+            local = self._ensure_defined(225, fields)
+            self._data(local, struct.pack(
+                '<IIBIH',
+                fit_timestamp(ts),
+                int(duration_s * 1000),
+                set_type,
+                st,
+                message_index,
+            ))
+        else:
+            # Active sets: full fields
+            fields = [
+                (254, 4, 134),  # timestamp
+                (0, 4, 134),    # duration
+                (3, 2, 132),    # repetitions
+                (4, 2, 132),    # weight
+                (5, 1, 0),      # set_type
+                (6, 4, 134),    # start_time
+                (7, 2, 132),    # category
+                (8, 2, 132),    # category_subtype
+                (9, 1, 0),      # weight_display_unit
+                (10, 2, 132),   # exercise_name (message_index)
+                (11, 2, 132),   # wkt_step_index
+            ]
+            local = self._ensure_defined(225, fields)
+            w = int(weight_kg * 16) if weight_kg > 0 else 0
+            weight_unit = 1  # kilogram display
+            self._data(local, struct.pack(
+                '<IIHHBIHHBHH',
+                fit_timestamp(ts), int(duration_s * 1000),
+                reps, w, set_type, st, category, exercise_name,
+                weight_unit, message_index, wkt_step_index,
+            ))
 
     def write_split(self, ts: datetime, start_time: datetime, end_time: datetime,
                     elapsed_s: float, timer_s: float, split_type: int,
                     message_index: int, total_ascent: int = 0,
                     avg_hr: int = 64, max_hr: int = 74):
-        """Message 312 - Split"""
+        """Message 312 - Split
+        
+        NOTE: split_type uses the FIT split_type enum, NOT set_type values!
+        Callers pass SET_TYPE_ACTIVE (0) or SET_TYPE_REST (1) and we convert
+        to the correct split_type enum: 17 = active_set, 18 = rest_set.
+        """
+        # Convert set_type values to split_type enum values
+        if split_type == SET_TYPE_ACTIVE:
+            fit_split_type = SPLIT_TYPE_ACTIVE_SET  # 17
+        elif split_type == SET_TYPE_REST:
+            fit_split_type = SPLIT_TYPE_REST_SET     # 18
+        else:
+            fit_split_type = split_type  # pass through if already correct
+
         fields = [
-            (253, 4, 134), (0, 1, 0), (1, 4, 134), (2, 4, 134),
-            (3, 4, 134), (4, 4, 134), (9, 4, 134),
-            (13, 2, 132), (254, 2, 132),
+            (253, 4, 134),  # timestamp
+            (0, 1, 0),      # split_type
+            (1, 4, 134),    # total_elapsed_time
+            (2, 4, 134),    # total_timer_time
+            (3, 4, 134),    # total_distance
+            (4, 4, 134),    # avg_speed
+            (9, 4, 134),    # start_time
+            (13, 2, 132),   # total_ascent
+            (254, 2, 132),  # message_index
         ]
         local = self._ensure_defined(312, fields)
-        avg_speed = 0
-        total_distance = 0
         self._data(local, struct.pack(
             '<IBIIIIIHH',
-            fit_timestamp(ts), split_type,
+            fit_timestamp(ts), fit_split_type,
             int(elapsed_s * 1000), int(timer_s * 1000),
-            total_distance, avg_speed, fit_timestamp(start_time),
-            total_ascent, message_index
+            0,  # total_distance
+            0,  # avg_speed
+            fit_timestamp(start_time),
+            total_ascent, message_index,
         ))
 
     def write_split_summary(self, ts: datetime, total_timer_s: float,
                            num_splits: int, split_type: int,
                            avg_hr: int = 64, max_hr: int = 74,
                            message_index: int = 0):
-        """Message 313 - Split Summary"""
+        """Message 313 - Split Summary
+        
+        NOTE: Same split_type conversion as write_split.
+        """
+        # Convert set_type values to split_type enum values
+        if split_type == SET_TYPE_ACTIVE:
+            fit_split_type = SPLIT_TYPE_ACTIVE_SET  # 17
+        elif split_type == SET_TYPE_REST:
+            fit_split_type = SPLIT_TYPE_REST_SET     # 18
+        else:
+            fit_split_type = split_type
+
         fields = [
-            (253, 4, 134), (0, 1, 0), (3, 2, 132), (4, 4, 134),
-            (5, 4, 134), (6, 4, 134), (8, 2, 132),
-            (10, 1, 2), (11, 1, 2), (13, 4, 134), (254, 2, 132),
+            (253, 4, 134),  # timestamp
+            (0, 1, 0),      # split_type
+            (3, 2, 132),    # num_splits
+            (4, 4, 134),    # total_timer_time
+            (5, 4, 134),    # total_distance
+            (6, 4, 134),    # avg_speed
+            (8, 2, 132),    # total_ascent
+            (10, 1, 2),     # avg_heart_rate
+            (11, 1, 2),     # max_heart_rate
+            (13, 4, 134),   # total_calories
+            (254, 2, 132),  # message_index
         ]
         local = self._ensure_defined(313, fields)
-        total_distance = 0
-        avg_speed = 0
-        total_ascent = 0
-        total_calories = 0
         self._data(local, struct.pack(
             '<IBHIIIHBBIH',
-            fit_timestamp(ts), split_type, num_splits,
-            int(total_timer_s * 1000), total_distance, avg_speed,
-            total_ascent, avg_hr, max_hr, total_calories, message_index
+            fit_timestamp(ts), fit_split_type, num_splits,
+            int(total_timer_s * 1000), 0, 0,  # distance, speed
+            0,  # total_ascent
+            avg_hr, max_hr, 0,  # calories
+            message_index,
         ))
 
     def write_event(self, ts: datetime, event: int = EVENT_TIMER,
@@ -293,11 +364,7 @@ class FitEncoder:
 
     def write_workout_step(self, message_index: int, exercise_category: int,
                           exercise_name: int, reps: int, is_rest: bool = False):
-        """Message 27 - Workout Step
-        
-        Fix 1.2: Both rest and non-rest paths now get separate definitions
-        thanks to the fixed _ensure_defined caching.
-        """
+        """Message 27 - Workout Step"""
         intensity = 1 if is_rest else 0
         category = 0 if is_rest else exercise_category
         subtype = 0 if is_rest else exercise_name
@@ -315,8 +382,8 @@ class FitEncoder:
                             exercise_category: int, exercise_name: int):
         """Message 264 - Exercise Title
         
-        Fix 1.3: Each exercise name gets its own definition
-        thanks to the fixed _ensure_defined caching.
+        Each exercise name gets its own definition thanks to the
+        fixed _ensure_defined caching (variable-length name field).
         """
         name_bytes = name.encode('utf-8') + b'\x00'
         fields = [
