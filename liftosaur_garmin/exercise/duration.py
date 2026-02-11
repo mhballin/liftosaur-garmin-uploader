@@ -7,6 +7,7 @@ estimates are heuristic and clamped to a minimum set duration.
 
 from datetime import datetime, timedelta
 from typing import Dict
+import sys
 
 REP_DURATION = {
     28: 5.0,   # squat
@@ -51,6 +52,18 @@ def compute_set_timing(
         dict with keys: `set_start`, `set_end`, `set_duration` (seconds),
         and `rest_duration` (seconds, >= 0).
     """
+    # Validate inputs
+    if not isinstance(set_end, datetime) or not isinstance(prev_set_end, datetime):
+        raise ValueError("Invalid datetime provided to compute_set_timing")
+
+    # If the reported set_end is before the previous set end, adjust it forward
+    if set_end < prev_set_end:
+        print(
+            f"⚠️  Adjusting set_end: {set_end} is before prev_set_end {prev_set_end}",
+            file=sys.stderr,
+        )
+        set_end = prev_set_end + timedelta(seconds=1)
+
     time_under_tension = estimate_time_under_tension(reps, category_id)
     set_start = set_end - timedelta(seconds=time_under_tension)
 
@@ -59,6 +72,11 @@ def compute_set_timing(
         set_start = prev_set_end
 
     set_duration = (set_end - set_start).total_seconds()
+    # Ensure set_duration is reasonable and non-negative
+    if set_duration <= 0:
+        set_duration = MIN_SET_DURATION
+        set_start = set_end - timedelta(seconds=set_duration)
+
     rest_duration = (set_start - prev_set_end).total_seconds()
     if rest_duration < 0:
         rest_duration = 0.0
