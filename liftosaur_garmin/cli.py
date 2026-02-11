@@ -10,7 +10,7 @@ from pathlib import Path
 import tempfile
 
 from .csv_parser import group_workouts, parse_csv
-from .fit.utils import parse_iso
+from .fit.utils import parse_iso, resolve_timezone
 from .history import get_new_workouts, load_history, mark_uploaded
 from .uploader import garmin_setup, upload_to_garmin
 from .workout_builder import build_fit_for_workout
@@ -32,6 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--date", help="Workout date filter (YYYY-MM-DD)")
     parser.add_argument("--all", action="store_true", help="Upload all new workouts")
     parser.add_argument("--output", "-o", help="Output FIT file path")
+    parser.add_argument(
+        "--timezone",
+        help="Override local timezone (e.g. America/New_York)",
+    )
     parser.add_argument(
         "--skip-validation",
         action="store_true",
@@ -194,6 +198,12 @@ def main(argv: list[str] | None = None) -> int:
         print("Run without --dry-run to proceed.")
         return 0
 
+    try:
+        local_tz = resolve_timezone(args.timezone)
+    except ValueError as exc:
+        print(f"❌ {exc}")
+        return 1
+
     failures: list[tuple[str, str]] = []
 
     for workout_datetime, sets in selected:
@@ -213,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         try:
-            fit_bytes = build_fit_for_workout(sets)
+            fit_bytes = build_fit_for_workout(sets, tzinfo=local_tz)
         except Exception as exc:
             reason = f"build error: {exc}"
             print(f"   ❌ {reason}")
