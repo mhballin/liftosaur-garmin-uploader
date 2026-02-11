@@ -140,10 +140,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        # Temporary filter to target the most recent workout in the CSV.
-        rows = parse_csv(
-            Path(args.csv), workout_datetime="2026-02-05T11:42:37.509Z"
-        )
+        # Load all rows from the CSV; filtering is handled downstream
+        rows = parse_csv(Path(args.csv))
     except (FileNotFoundError, ValueError) as exc:
         print(f"❌ {exc}")
         return 1
@@ -196,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
         print("Run without --dry-run to proceed.")
         return 0
 
+    failures: list[tuple[str, str]] = []
+
     for workout_datetime, sets in selected:
         dt = parse_iso(workout_datetime)
         day = sets[0].get("Day Name", "Workout")
@@ -212,7 +212,14 @@ def main(argv: list[str] | None = None) -> int:
             f"   {len(working)} working sets ({len(sets) - len(working)} warmups skipped)"
         )
 
-        fit_bytes = build_fit_for_workout(sets)
+        try:
+            fit_bytes = build_fit_for_workout(sets)
+        except Exception as exc:
+            reason = f"build error: {exc}"
+            print(f"   ❌ {reason}")
+            failures.append((workout_datetime, reason))
+            print()
+            continue
         print(f"   FIT: {len(fit_bytes)} bytes")
         output_path = Path(args.output) if args.output else None
         wrote_temp_fit = False
@@ -268,7 +275,21 @@ def main(argv: list[str] | None = None) -> int:
                     temp_fit_path.unlink(missing_ok=True)
                 except Exception:
                     pass
-            return 1
+            reason = "validation failed"
+            if validation_result and getattr(validation_result, "stdout", None):
+                try:
+                    reason += f": stdout: {validation_result.stdout.strip()}"
+                except Exception:
+                    pass
+            if validation_result and getattr(validation_result, "stderr", None):
+                try:
+                    reason += f" stderr: {validation_result.stderr.strip()}"
+                except Exception:
+                    pass
+            print(f"   ❌ {reason}")
+            failures.append((workout_datetime, reason))
+            print()
+            continue
 
         # If --no-upload was provided, we stop here after validation (or skipping it).
         if args.no_upload:
@@ -284,13 +305,16 @@ def main(argv: list[str] | None = None) -> int:
                 upload_to_garmin(fit_bytes)
                 mark_uploaded(workout_datetime, sets)
             except RuntimeError as exc:
-                print(f"   ❌ {exc}")
+                reason = str(exc)
+                print(f"   ❌ {reason}")
                 if wrote_temp_fit and temp_fit_path is not None:
                     try:
                         temp_fit_path.unlink(missing_ok=True)
                     except Exception:
                         pass
-                return 1
+                failures.append((workout_datetime, reason))
+                print()
+                continue
 
             if wrote_temp_fit and temp_fit_path is not None:
                 try:
@@ -299,6 +323,12 @@ def main(argv: list[str] | None = None) -> int:
                     pass
 
         print()
+
+    if failures:
+        print("Upload summary — failures:")
+        for dt, reason in failures:
+            print(f"  {dt} : {reason}")
+        return 1
 
     print("Done! 🎉")
     return 0
