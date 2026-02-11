@@ -124,17 +124,24 @@ class FitEncoder:
         local = self._ensure_defined(49, fields)
         self._data(local, struct.pack('<H', GARMIN_FENIX_7_SW_VERSION))
 
-    def write_activity(self, ts: datetime, timer_s: float, num_sessions: int = 1):
+    def write_activity(
+        self,
+        ts: datetime,
+        timer_s: float,
+        num_sessions: int = 1,
+        local_timestamp: int | None = None,
+    ):
         """Message 34 - Activity"""
         fields = [
             (253, 4, 134), (0, 4, 134), (1, 2, 132),
             (2, 1, 0), (3, 1, 0), (4, 1, 0), (5, 4, 134),
         ]
         local = self._ensure_defined(34, fields)
+        local_ts = local_timestamp if local_timestamp is not None else fit_timestamp(ts)
         self._data(local, struct.pack(
             '<IIHBBBI', fit_timestamp(ts), int(timer_s * 1000),
             num_sessions, 0, EVENT_ACTIVITY, EVENT_TYPE_STOP,
-            fit_timestamp(ts)))
+            local_ts))
 
     def write_session(self, ts: datetime, start: datetime,
                       elapsed_s: float, timer_s: float, total_reps: int):

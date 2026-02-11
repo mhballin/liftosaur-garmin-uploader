@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 
 from .exercise.duration import (
     compute_set_timing,
@@ -16,12 +16,12 @@ from .fit.constants import (
     SET_TYPE_REST,
 )
 from .fit.encoder import FitEncoder
-from .fit.utils import parse_iso
+from .fit.utils import fit_local_timestamp, parse_iso, resolve_timezone
 import traceback
 import sys
 
 
-def build_fit_for_workout(sets: list[dict]) -> bytes:
+def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> bytes:
     """Build a FIT strength training activity from Liftosaur set rows.
 
     Message ordering follows the Garmin spec:
@@ -41,6 +41,7 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
 
     try:
         encoder = FitEncoder()
+        local_tz = tzinfo or resolve_timezone(None)
         workout_start = parse_iso(sets[0]["Workout DateTime"])
 
         # ── Calculate workout end time ──────────────────────────────────
@@ -215,7 +216,11 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
         encoder.write_device_info(workout_end, device_index=0)
 
         # 15. activity
-        encoder.write_activity(workout_end, total_elapsed)
+        encoder.write_activity(
+            workout_end,
+            total_elapsed,
+            local_timestamp=fit_local_timestamp(workout_end, local_tz),
+        )
 
         return encoder.build()
 
@@ -235,6 +240,6 @@ def build_fit_for_workout(sets: list[dict]) -> bytes:
         raise
 
 
-def build_fit(sets: list[dict]) -> bytes:
+def build_fit(sets: list[dict], tzinfo: tzinfo | None = None) -> bytes:
     """Compatibility wrapper for building a FIT payload."""
-    return build_fit_for_workout(sets)
+    return build_fit_for_workout(sets, tzinfo=tzinfo)
