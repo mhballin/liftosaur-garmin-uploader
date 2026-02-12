@@ -28,8 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("csv", nargs="?", help="Path to Liftosaur CSV export")
     parser.add_argument("--setup", action="store_true", help="Authenticate Garmin Connect")
-    parser.add_argument("--status", action="store_true", help="Show upload history")
-    parser.add_argument("--list", action="store_true", help="List workouts with status")
+    parser.add_argument("--list", action="store_true", help="List workouts (with CSV) or upload history (without CSV)")
     parser.add_argument("--dry-run", action="store_true", help="Preview uploads only")
     parser.add_argument("--no-upload", action="store_true", help="Skip Garmin upload")
     parser.add_argument("--force", action="store_true", help="Ignore upload history")
@@ -133,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(args_list)
 
-    if args.status:
+    if args.list and not args.csv:
         history = load_history()
         if not history:
             logger.info("No workouts uploaded yet.")
