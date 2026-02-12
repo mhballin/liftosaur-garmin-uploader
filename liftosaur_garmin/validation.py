@@ -6,10 +6,13 @@ other tools can validate a FIT file without duplicating subprocess logic.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def _project_root() -> Path:
@@ -48,20 +51,27 @@ def validate_fit_file(input_fit: Path, keep_csv: bool = False) -> Tuple[Optional
     """
     tool_path = fitcsvtool_path()
     if not tool_path.exists():
+        logger.debug(f"FitCSVTool.jar not found at {tool_path}")
         return None, None
 
     # Decide where to write CSV output
     if keep_csv:
         output_csv = input_fit.with_suffix(".csv")
+        logger.debug(f"Validating {input_fit} -> {output_csv}")
         result = _run_fitcsvtool(input_fit, output_csv)
-        return (result.returncode == 0), result
+        status = result.returncode == 0
+        logger.debug(f"Validation {'passed' if status else 'failed'} (exit code {result.returncode})")
+        return status, result
 
     temp_file = tempfile.NamedTemporaryFile(prefix="fitcsv_", suffix=".csv", delete=False)
     temp_path = Path(temp_file.name)
     temp_file.close()
     try:
+        logger.debug(f"Validating {input_fit}")
         result = _run_fitcsvtool(input_fit, temp_path)
-        return (result.returncode == 0), result
+        status = result.returncode == 0
+        logger.debug(f"Validation {'passed' if status else 'failed'} (exit code {result.returncode})")
+        return status, result
     finally:
         try:
             temp_path.unlink(missing_ok=True)

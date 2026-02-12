@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import csv
+import logging
 from collections import OrderedDict
 from pathlib import Path
 from typing import Iterable
 
 from .fit.utils import parse_iso
+
+logger = logging.getLogger(__name__)
 
 REQUIRED_CSV_COLUMNS = {
     "Workout DateTime",
@@ -51,6 +54,7 @@ def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]
             try:
                 parse_iso(wdt)
             except ValueError:
+                logger.debug(f"Skipping row with invalid datetime: {wdt}")
                 continue
             if workout_datetime and wdt != workout_datetime:
                 continue
@@ -59,6 +63,7 @@ def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]
     if not rows:
         raise ValueError("No valid rows found in CSV.")
 
+    logger.debug(f"Parsed {len(rows)} rows from {filepath}")
     return rows
 
 

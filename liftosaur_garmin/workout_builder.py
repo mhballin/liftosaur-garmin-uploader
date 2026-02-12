@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, tzinfo
 
 from .exercise.duration import (
@@ -17,8 +18,8 @@ from .fit.constants import (
 )
 from .fit.encoder import FitEncoder
 from .fit.utils import fit_local_timestamp, parse_iso, resolve_timezone
-import traceback
-import sys
+
+logger = logging.getLogger(__name__)
 
 
 def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> bytes:
@@ -161,6 +162,11 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
             set_duration = timing["set_duration"]
             rest_duration = timing["rest_duration"]
 
+            logger.debug(
+                f"Set {idx}: {exercise_name} - {reps} reps @ {weight_kg:.1f}kg "
+                f"duration={set_duration:.1f}s rest={rest_duration:.1f}s"
+            )
+
             # ── Write rest set (if there's a gap > 5s) ─────────────────
             if prev_end_time is not None and rest_duration > 5:
                 encoder.write_set(
@@ -222,21 +228,25 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
             local_timestamp=fit_local_timestamp(workout_end, local_tz),
         )
 
-        return encoder.build()
+        fit_data = encoder.build()
+        logger.info(
+            f"Generated FIT for {len(unique_exercises)} exercises, "
+            f"{len(working_sets)} sets, {total_reps} total reps ({len(fit_data)} bytes)"
+        )
+        return fit_data
 
     except Exception as exc:  # pragma: no cover - diagnostic wrapper
-        print("❌ Error building FIT for workout:", file=sys.stderr)
+        logger.error("Error building FIT for workout:")
         try:
             workout_dt = sets[0].get("Workout DateTime")
         except Exception:
             workout_dt = None
-        print(f"  Workout DateTime: {workout_dt}", file=sys.stderr)
+        logger.error(f"  Workout DateTime: {workout_dt}")
         if current_set_info is not None:
-            print("  Current set when error occurred:", file=sys.stderr)
+            logger.error("  Current set when error occurred:")
             for k, v in current_set_info.items():
-                print(f"    {k}: {v}", file=sys.stderr)
-        print("  Traceback:", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
+                logger.error(f"    {k}: {v}")
+        logger.exception("  Exception:")
         raise
 
 
