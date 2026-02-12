@@ -27,3 +27,6 @@ tests/output/
 
 # Local tree snapshot
 tree.txt
+
+# TODO file
+TODO.MD

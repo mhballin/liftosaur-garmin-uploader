@@ -57,15 +57,10 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
         workout_end = last_time + timedelta(seconds=30)
         total_elapsed = (workout_end - workout_start).total_seconds()
 
-        # ── Filter out warmup sets ──────────────────────────────────────
-        working_sets = [
-            row for row in sets if (row.get("Is Warmup Set?") or "0").strip() != "1"
-        ]
-
         # ── Get unique exercises (preserving order) ─────────────────────
         unique_exercises: list[tuple[str, int, int]] = []
         seen: set[str] = set()
-        for row in working_sets:
+        for row in sets:
             name = (row.get("Exercise") or "").strip()
             if name and name not in seen:
                 seen.add(name)
@@ -75,7 +70,7 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
                 unique_exercises.append((name, category_id, exercise_id))
 
         total_reps = sum(
-            int(float(row.get("Completed Reps", 0) or 0)) for row in working_sets
+            int(float(row.get("Completed Reps", 0) or 0)) for row in sets
         )
 
         # ===== MESSAGE ORDERING PER GARMIN SPEC =====
@@ -125,11 +120,12 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
         prev_end_time: datetime | None = None
         prev_category_id: int = 65534
         prev_exercise_id: int = 0
+        prev_exercise_name: str = ""
         set_count: int = 0
         message_index: int = 0
         active_timer_s: float = 0.0
 
-        for idx, row in enumerate(working_sets):
+        for idx, row in enumerate(sets):
             # Update diagnostic context before processing this set
             current_set_info = {
                 "index": idx,
@@ -142,6 +138,8 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
             cur_info = current_set_info
 
             exercise_name = (row.get("Exercise") or "Unknown").strip()
+            is_amrap = (row.get("Is AMRAP?") or "0").strip() == "1"
+            is_warmup = (row.get("Is Warmup Set?") or "0").strip() == "1"
             reps = int(float(row.get("Completed Reps", 0) or 0))
             weight_value = float(row.get("Completed Weight Value", 0) or 0)
             weight_unit = (row.get("Completed Weight Unit") or "lb").strip()
@@ -162,8 +160,19 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
             set_duration = timing["set_duration"]
             rest_duration = timing["rest_duration"]
 
+            set_label = "AMRAP" if is_amrap else ("Warmup" if is_warmup else "Set")
+
+            # Detect superset pattern (different exercise with short gap)
+            if (prev_end_time is not None
+                    and exercise_name != prev_exercise_name
+                    and rest_duration < 10):
+                logger.debug(
+                    f"Superset transition: {prev_exercise_name} → {exercise_name} "
+                    f"(gap={rest_duration:.1f}s)"
+                )
+
             logger.debug(
-                f"Set {idx}: {exercise_name} - {reps} reps @ {weight_kg:.1f}kg "
+                f"{set_label} {idx}: {exercise_name} - {reps} reps @ {weight_kg:.1f}kg "
                 f"duration={set_duration:.1f}s rest={rest_duration:.1f}s"
             )
 
@@ -202,6 +211,7 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
             prev_end_time = set_end
             prev_category_id = category_id
             prev_exercise_id = exercise_id
+            prev_exercise_name = exercise_name
             set_count += 1
 
         # 12. session
@@ -231,7 +241,7 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
         fit_data = encoder.build()
         logger.info(
             f"Generated FIT for {len(unique_exercises)} exercises, "
-            f"{len(working_sets)} sets, {total_reps} total reps ({len(fit_data)} bytes)"
+            f"{len(sets)} sets, {total_reps} total reps ({len(fit_data)} bytes)"
         )
         return fit_data
 

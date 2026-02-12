@@ -102,15 +102,18 @@ def format_workout_summary(workout_datetime: str, sets: list[dict], uploaded: bo
     """Format a single workout for display."""
     dt = parse_iso(workout_datetime)
     day = sets[0].get("Day Name", "")
-    working = [
-        row for row in sets if (row.get("Is Warmup Set?") or "0").strip() != "1"
-    ]
-    warmups = len(sets) - len(working)
-    exercises = list(OrderedDict.fromkeys(row.get("Exercise", "") for row in working))
+    warmup_count = sum(1 for row in sets if (row.get("Is Warmup Set?") or "0").strip() == "1")
+    amrap_count = sum(1 for row in sets if (row.get("Is AMRAP?") or "0").strip() == "1")
+    exercises = list(OrderedDict.fromkeys(row.get("Exercise", "") for row in sets))
     icon = "✅" if uploaded else "🆕"
+    parts = [f"{len(sets)} sets"]
+    if warmup_count:
+        parts.append(f"{warmup_count} warmup")
+    if amrap_count:
+        parts.append(f"{amrap_count} AMRAP")
     lines = [
         f"  {icon} {dt.strftime('%Y-%m-%d %H:%M')} – {day}",
-        f"     {len(working)} working sets, {warmups} warmup sets",
+        f"     {', '.join(parts)}",
         f"     {', '.join(exercises)}",
     ]
     return "\n".join(lines)
@@ -203,12 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("🔍 Dry run – would upload:\n")
         for workout_datetime, sets in selected:
             logger.info(format_workout_summary(workout_datetime, sets, False))
-            working = [
-                row
-                for row in sets
-                if (row.get("Is Warmup Set?") or "0").strip() != "1"
-            ]
-            logger.info(f"     Would generate FIT: ~{len(working)} active sets")
+            logger.info(f"     Would generate FIT: {len(sets)} sets")
             logger.info("")
         logger.info("Run without --dry-run to proceed.")
         return 0
@@ -224,18 +222,22 @@ def main(argv: list[str] | None = None) -> int:
     for workout_datetime, sets in selected:
         dt = parse_iso(workout_datetime)
         day = sets[0].get("Day Name", "Workout")
-        working = [
-            row
-            for row in sets
-            if (row.get("Is Warmup Set?") or "0").strip() != "1"
-        ]
-        exercises = list(OrderedDict.fromkeys(row.get("Exercise", "") for row in working))
+        warmup_count = sum(
+            1 for row in sets if (row.get("Is Warmup Set?") or "0").strip() == "1"
+        )
+        amrap_count = sum(
+            1 for row in sets if (row.get("Is AMRAP?") or "0").strip() == "1"
+        )
+        exercises = list(OrderedDict.fromkeys(row.get("Exercise", "") for row in sets))
 
         logger.info(f"🏋️  {dt.strftime('%Y-%m-%d %H:%M')} – {day}")
         logger.info(f"   {', '.join(exercises)}")
-        logger.info(
-            f"   {len(working)} working sets ({len(sets) - len(working)} warmups skipped)"
-        )
+        parts = [f"{len(sets)} sets"]
+        if warmup_count:
+            parts.append(f"{warmup_count} warmup")
+        if amrap_count:
+            parts.append(f"{amrap_count} AMRAP")
+        logger.info(f"   {', '.join(parts)}")
 
         try:
             fit_bytes = build_fit_for_workout(sets, tzinfo=local_tz)
