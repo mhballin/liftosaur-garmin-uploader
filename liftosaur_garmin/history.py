@@ -35,16 +35,12 @@ def save_history(history: dict) -> None:
 def mark_uploaded(workout_datetime: str, sets: list[dict]) -> None:
     """Record a workout upload in history."""
     history = load_history()
-    working_sets = [
-        row for row in sets if (row.get("Is Warmup Set?") or "0").strip() != "1"
-    ]
     history[workout_datetime] = {
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "total_rows": len(sets),
-        "working_sets": len(working_sets),
         "day": sets[0].get("Day Name", ""),
         "exercises": list(
-            OrderedDict.fromkeys(row.get("Exercise", "") for row in working_sets)
+            OrderedDict.fromkeys(row.get("Exercise", "") for row in sets)
         ),
     }
     save_history(history)

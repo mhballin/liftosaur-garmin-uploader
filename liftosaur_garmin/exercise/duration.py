@@ -75,6 +75,11 @@ def compute_set_timing(
     if set_duration <= 0:
         set_duration = MIN_SET_DURATION
         set_start = set_end - timedelta(seconds=set_duration)
+    elif set_duration < MIN_SET_DURATION:
+        logger.debug(
+            f"Short set duration: {set_duration:.1f}s (minimum is {MIN_SET_DURATION}s) — "
+            f"likely superset or rapid succession sets"
+        )
 
     rest_duration = (set_start - prev_set_end).total_seconds()
     if rest_duration < 0:

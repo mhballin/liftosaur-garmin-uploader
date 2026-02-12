@@ -69,7 +69,7 @@ We use Garmin's official FIT SDK (FitCSVTool.jar) to validate generated FIT file
 ### CSV Format (Liftosaur Export)
 Required columns: `Workout DateTime`, `Exercise`, `Is Warmup Set?`, `Completed Reps`, `Completed Weight Value`, `Completed Weight Unit`, `Completed Reps Time`, `Day Name`
 - Workouts are grouped by `Workout DateTime`
-- Warmup sets (`Is Warmup Set? == '1'`) are currently skipped in FIT output (intentional design decision)
+- Warmup sets (`Is Warmup Set? == '1'`) are currently skipped in FIT output but should be included (see TODO.MD Phase 1 remaining cleanup)
 - Timestamps per set (`Completed Reps Time`) drive real timing and rest period calculation
 - Weights are in lbs in the CSV; converted to kg for FIT (protocol requirement)
 
