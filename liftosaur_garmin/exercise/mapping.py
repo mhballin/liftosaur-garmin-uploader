@@ -11,7 +11,10 @@ Reference: FIT SDK Profile.xlsx -> Types tab
 
 from __future__ import annotations
 
+import logging
 from difflib import SequenceMatcher, get_close_matches
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -324,11 +327,14 @@ def lookup_exercise(name: str, target_muscles: str | None = None) -> tuple[int, 
 
     # Tier 1: exact override
     if key in MANUAL_OVERRIDES:
-        return MANUAL_OVERRIDES[key]
+        result = MANUAL_OVERRIDES[key]
+        logger.debug(f"Exercise '{name}' matched tier 1 (exact): {result}")
+        return result
 
     # Tier 1b: partial match
     for ok, ov in MANUAL_OVERRIDES.items():
         if ok in key or key in ok:
+            logger.debug(f"Exercise '{name}' matched tier 1b (partial): {ov}")
             return ov
 
     # Tier 2: fuzzy within muscle-determined category
@@ -339,7 +345,10 @@ def lookup_exercise(name: str, target_muscles: str | None = None) -> tuple[int, 
             if cat_id is not None:
                 ex_id, score = _fuzzy_match_in_category(name, cat_name)
                 if ex_id is not None and score >= 0.5:
-                    return (cat_id, ex_id)
+                    result = (cat_id, ex_id)
+                    logger.debug(f"Exercise '{name}' matched tier 2 (fuzzy, category={cat_name}, score={score:.2f}): {result}")
+                    return result
+                logger.debug(f"Exercise '{name}' assigned to category {cat_name} (muscles={target_muscles}), no exercise match")
                 return (cat_id, 0)
 
     # Tier 2b: global fuzzy
@@ -353,6 +362,8 @@ def lookup_exercise(name: str, target_muscles: str | None = None) -> tuple[int, 
             best_match = (cat_id, ex_id)
 
     if best_match and best_score >= 0.6:
+        logger.debug(f"Exercise '{name}' matched tier 2b (global fuzzy, score={best_score:.2f}): {best_match}")
         return best_match
 
+    logger.warning(f"Exercise '{name}' not found: falling back to unknown (65534, 0)")
     return (65534, 0)

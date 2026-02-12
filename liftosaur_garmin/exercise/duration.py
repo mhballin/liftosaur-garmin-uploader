@@ -7,7 +7,9 @@ estimates are heuristic and clamped to a minimum set duration.
 
 from datetime import datetime, timedelta
 from typing import Dict
-import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 REP_DURATION = {
     28: 5.0,   # squat
@@ -58,10 +60,7 @@ def compute_set_timing(
 
     # If the reported set_end is before the previous set end, adjust it forward
     if set_end < prev_set_end:
-        print(
-            f"⚠️  Adjusting set_end: {set_end} is before prev_set_end {prev_set_end}",
-            file=sys.stderr,
-        )
+        logger.warning(f"Adjusting set_end: {set_end} is before prev_set_end {prev_set_end}")
         set_end = prev_set_end + timedelta(seconds=1)
 
     time_under_tension = estimate_time_under_tension(reps, category_id)

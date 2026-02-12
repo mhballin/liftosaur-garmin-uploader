@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import tempfile
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 GARTH_DIR = Path.home() / ".garth"
 AUTH_ERROR_HINTS = (
@@ -40,15 +43,16 @@ def garmin_setup() -> None:
     except ImportError as exc:
         raise RuntimeError("'garth' is not installed. Run: pip install garth") from exc
 
-    print("\n🔐 Garmin Connect Authentication")
-    print("=" * 40)
+    logger.info("🔐 Garmin Connect Authentication")
+    logger.info("=" * 40)
     email = input("Email: ").strip()
     password = input("Password: ").strip()
 
     try:
+        logger.debug(f"Attempting login for {email}...")
         garth.login(email, password)
         garth.save(str(GARTH_DIR))
-        print(f"\n✅ Authenticated! Tokens saved to {GARTH_DIR}")
+        logger.info(f"✅ Authenticated! Tokens saved to {GARTH_DIR}")
     except Exception as exc:
         raise RuntimeError(f"Authentication failed: {exc}") from exc
 
@@ -62,11 +66,12 @@ def upload_to_garmin(fit_bytes: bytes) -> None:
 
     if GARTH_DIR.exists():
         try:
+            logger.debug("Resuming Garmin session from saved credentials...")
             garth.resume(str(GARTH_DIR))
         except Exception as exc:
             message = str(exc)
             if _is_auth_error(message):
-                print("   ⚠️  Garmin token expired; re-auth required.")
+                logger.warning("Garmin token expired; re-authenticating...")
                 garmin_setup()
                 garth.resume(str(GARTH_DIR))
             else:
@@ -81,24 +86,25 @@ def upload_to_garmin(fit_bytes: bytes) -> None:
         max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             try:
+                logger.debug(f"Uploading FIT ({len(fit_bytes)} bytes) to Garmin Connect...")
                 with tmp_path.open("rb") as handle:
                     garth.client.upload(handle)
-                print("   ✅ Uploaded to Garmin Connect!")
+                logger.info("✅ Uploaded to Garmin Connect!")
                 return
             except Exception as exc:
                 message = str(exc)
                 if "409" in message or "conflict" in message.lower():
-                    print("   ⚠️  Activity already exists (duplicate timestamp).")
+                    logger.warning("Activity already exists (duplicate timestamp).")
                     return
                 if _is_auth_error(message) and not reauthed:
-                    print("   ⚠️  Upload auth expired; re-auth required.")
+                    logger.warning("Upload auth expired; re-authenticating...")
                     garmin_setup()
                     garth.resume(str(GARTH_DIR))
                     reauthed = True
                     continue
                 if _is_rate_limited(message) and attempt < max_attempts:
                     delay = 2 ** (attempt - 1)
-                    print(f"   ⏳ Garmin rate-limited, retrying in {delay}s...")
+                    logger.debug(f"Garmin rate-limited, retrying in {delay}s...")
                     time.sleep(delay)
                     continue
                 raise RuntimeError(f"Upload failed: {exc}") from exc

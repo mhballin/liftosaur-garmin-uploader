@@ -1,8 +1,11 @@
 """FIT file binary encoder compatible with Garmin Fenix 7."""
+import logging
 import struct
 from datetime import datetime
 from .constants import *
 from .utils import fit_timestamp
+
+logger = logging.getLogger(__name__)
 
 # Split type enum values (different from set_type!)
 SPLIT_TYPE_ACTIVE_SET = 17
@@ -52,6 +55,7 @@ class FitEncoder:
             local = self._next_local()
             self._define(local, global_num, fields)
             self._definitions[cache_key] = local
+            logger.debug(f"Defined message {global_num} with local {local} ({len(fields)} fields)")
         
         return self._definitions[cache_key]
 
@@ -415,7 +419,9 @@ class FitEncoder:
         header = struct.pack('<BBHI4s', 14, 0x20, 2188, len(data), b'.FIT')
         header += struct.pack('<H', self._crc16(header))
         full = header + data
-        return full + struct.pack('<H', self._crc16(full))
+        result = full + struct.pack('<H', self._crc16(full))
+        logger.debug(f"Built FIT file: {len(result)} bytes (header=14, data={len(data)}, crc=2)")
+        return result
 
     @staticmethod
     def _crc16(data: bytes) -> int:
