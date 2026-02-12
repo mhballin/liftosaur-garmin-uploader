@@ -7,10 +7,6 @@ from .utils import fit_timestamp
 
 logger = logging.getLogger(__name__)
 
-# Split type enum values (different from set_type!)
-SPLIT_TYPE_ACTIVE_SET = 17
-SPLIT_TYPE_REST_SET = 18
-
 
 class FitEncoder:
     """Minimal FIT file encoder for strength training activities."""
@@ -148,49 +144,24 @@ class FitEncoder:
             local_ts))
 
     def write_session(self, ts: datetime, start: datetime,
-                      elapsed_s: float, timer_s: float, total_reps: int):
+                      elapsed_s: float, timer_s: float, total_reps: int,
+                      num_laps: int = 1):
         """Message 18 - Session"""
         fields = [
             (253, 4, 134), (0, 1, 0), (1, 1, 0), (2, 4, 134),
             (5, 1, 0), (6, 1, 0), (7, 4, 134), (8, 4, 134),
             (9, 4, 134), (10, 4, 134), (11, 2, 132),
-            (16, 1, 2), (17, 1, 2), (25, 2, 132), (26, 2, 132),
+            (25, 2, 132), (26, 2, 132),
             (28, 1, 0), (48, 4, 134),
         ]
         local = self._ensure_defined(18, fields)
         self._data(local, struct.pack(
-            '<IBBIBBIIIIHBBHHBI',
+            '<IBBIBBIIIIHHHBI',
             fit_timestamp(ts), EVENT_SESSION, EVENT_TYPE_STOP,
             fit_timestamp(start), SPORT_TRAINING, SUB_SPORT_STRENGTH_TRAINING,
             int(elapsed_s * 1000), int(timer_s * 1000),
             0, total_reps, 0,
-            64, 74, 0, 1, 0, 0
-        ))
-
-    def write_lap(self, ts: datetime, start_time: datetime,
-                  elapsed_s: float, timer_s: float, total_reps: int = 0):
-        """Message 19 - Lap"""
-        fields = [
-            (253, 4, 134),  # timestamp
-            (2, 4, 134),    # start_time
-            (7, 4, 134),    # total_elapsed_time
-            (8, 4, 134),    # total_timer_time
-            (24, 1, 0),     # lap_trigger
-            (25, 1, 0),     # sport
-            (26, 1, 0),     # sub_sport
-            (32, 2, 132),   # total_cycles (reps)
-        ]
-        local = self._ensure_defined(19, fields)
-        self._data(local, struct.pack(
-            '<IIIIBBBH',
-            fit_timestamp(ts),
-            fit_timestamp(start_time),
-            int(elapsed_s * 1000),
-            int(timer_s * 1000),
-            0,  # manual trigger
-            SPORT_TRAINING,
-            SUB_SPORT_STRENGTH_TRAINING,
-            total_reps
+            0, num_laps, 0, 0
         ))
 
     def write_set(self, ts: datetime, duration_s: float, set_type: int,
@@ -248,85 +219,6 @@ class FitEncoder:
                 weight_unit, message_index, wkt_step_index,
             ))
 
-    def write_split(self, ts: datetime, start_time: datetime, end_time: datetime,
-                    elapsed_s: float, timer_s: float, split_type: int,
-                    message_index: int, total_ascent: int = 0,
-                    avg_hr: int = 64, max_hr: int = 74):
-        """Message 312 - Split
-        
-        NOTE: split_type uses the FIT split_type enum, NOT set_type values!
-        Callers pass SET_TYPE_ACTIVE (0) or SET_TYPE_REST (1) and we convert
-        to the correct split_type enum: 17 = active_set, 18 = rest_set.
-        """
-        # Convert set_type values to split_type enum values
-        if split_type == SET_TYPE_ACTIVE:
-            fit_split_type = SPLIT_TYPE_ACTIVE_SET  # 17
-        elif split_type == SET_TYPE_REST:
-            fit_split_type = SPLIT_TYPE_REST_SET     # 18
-        else:
-            fit_split_type = split_type  # pass through if already correct
-
-        fields = [
-            (253, 4, 134),  # timestamp
-            (0, 1, 0),      # split_type
-            (1, 4, 134),    # total_elapsed_time
-            (2, 4, 134),    # total_timer_time
-            (3, 4, 134),    # total_distance
-            (4, 4, 134),    # avg_speed
-            (9, 4, 134),    # start_time
-            (13, 2, 132),   # total_ascent
-            (254, 2, 132),  # message_index
-        ]
-        local = self._ensure_defined(312, fields)
-        self._data(local, struct.pack(
-            '<IBIIIIIHH',
-            fit_timestamp(ts), fit_split_type,
-            int(elapsed_s * 1000), int(timer_s * 1000),
-            0,  # total_distance
-            0,  # avg_speed
-            fit_timestamp(start_time),
-            total_ascent, message_index,
-        ))
-
-    def write_split_summary(self, ts: datetime, total_timer_s: float,
-                           num_splits: int, split_type: int,
-                           avg_hr: int = 64, max_hr: int = 74,
-                           message_index: int = 0):
-        """Message 313 - Split Summary
-        
-        NOTE: Same split_type conversion as write_split.
-        """
-        # Convert set_type values to split_type enum values
-        if split_type == SET_TYPE_ACTIVE:
-            fit_split_type = SPLIT_TYPE_ACTIVE_SET  # 17
-        elif split_type == SET_TYPE_REST:
-            fit_split_type = SPLIT_TYPE_REST_SET     # 18
-        else:
-            fit_split_type = split_type
-
-        fields = [
-            (253, 4, 134),  # timestamp
-            (0, 1, 0),      # split_type
-            (3, 2, 132),    # num_splits
-            (4, 4, 134),    # total_timer_time
-            (5, 4, 134),    # total_distance
-            (6, 4, 134),    # avg_speed
-            (8, 2, 132),    # total_ascent
-            (10, 1, 2),     # avg_heart_rate
-            (11, 1, 2),     # max_heart_rate
-            (13, 4, 134),   # total_calories
-            (254, 2, 132),  # message_index
-        ]
-        local = self._ensure_defined(313, fields)
-        self._data(local, struct.pack(
-            '<IBHIIIHBBIH',
-            fit_timestamp(ts), fit_split_type, num_splits,
-            int(total_timer_s * 1000), 0, 0,  # distance, speed
-            0,  # total_ascent
-            avg_hr, max_hr, 0,  # calories
-            message_index,
-        ))
-
     def write_event(self, ts: datetime, event: int = EVENT_TIMER,
                     event_type: int = EVENT_TYPE_START):
         """Message 21 - Event"""
@@ -359,36 +251,6 @@ class FitEncoder:
             f'<BB{len(name_bytes)}s',
             SPORT_TRAINING, SUB_SPORT_STRENGTH_TRAINING, name_bytes))
 
-    def write_workout(self, name: str, num_steps: int):
-        """Message 26 - Workout"""
-        name_bytes = name.encode('utf-8') + b'\x00'
-        fields = [
-            (4, 1, 0), (5, 4, 134), (6, 2, 132),
-            (8, len(name_bytes), 7), (11, 1, 0),
-        ]
-        local = self._ensure_defined(26, fields)
-        self._data(local, struct.pack(
-            f'<BIH{len(name_bytes)}sB',
-            SPORT_TRAINING, 0, num_steps,
-            name_bytes, SUB_SPORT_STRENGTH_TRAINING
-        ))
-
-    def write_workout_step(self, message_index: int, exercise_category: int,
-                          exercise_name: int, reps: int, is_rest: bool = False):
-        """Message 27 - Workout Step"""
-        intensity = 1 if is_rest else 0
-        category = 0 if is_rest else exercise_category
-        subtype = 0 if is_rest else exercise_name
-        fields = [
-            (254, 2, 132), (1, 1, 0), (2, 4, 134), (3, 1, 0),
-            (4, 4, 134), (7, 1, 0), (10, 2, 132), (11, 2, 132),
-        ]
-        local = self._ensure_defined(27, fields)
-        self._data(local, struct.pack(
-            '<HBIBIBHH',
-            message_index, 0, 0, 0, 0, intensity, category, subtype
-        ))
-
     def write_exercise_title(self, message_index: int, name: str,
                             exercise_category: int, exercise_name: int):
         """Message 264 - Exercise Title
@@ -407,11 +269,61 @@ class FitEncoder:
             exercise_category, exercise_name, name_bytes, message_index
         ))
 
-    def write_record(self, ts: datetime, heart_rate: int = 64):
-        """Message 20 - Record"""
-        fields = [(253, 4, 134), (5, 4, 136), (3, 1, 2)]
-        local = self._ensure_defined(20, fields)
-        self._data(local, struct.pack('<IIB', fit_timestamp(ts), 0, heart_rate))
+    def write_split(self, ts: datetime, split_type: int,
+                    elapsed_s: float, start_time: datetime,
+                    end_time: datetime, message_index: int):
+        """Message 312 - Split
+
+        One per set (active or rest). Garmin Connect uses these with
+        split_summary to compute Work Time / Rest Time.
+        """
+        fields = [
+            (253, 4, 134),  # timestamp
+            (0, 1, 0),      # split_type
+            (1, 4, 134),    # total_elapsed_time (ms)
+            (2, 4, 134),    # total_timer_time (ms)
+            (9, 4, 134),    # start_time
+            (27, 4, 134),   # end_time
+            (254, 2, 132),  # message_index
+        ]
+        local = self._ensure_defined(312, fields)
+        dur_ms = int(elapsed_s * 1000)
+        self._data(local, struct.pack(
+            '<IBIIIIH',
+            fit_timestamp(ts),
+            split_type,
+            dur_ms,
+            dur_ms,
+            fit_timestamp(start_time),
+            fit_timestamp(end_time),
+            message_index,
+        ))
+
+    def write_split_summary(self, ts: datetime, split_type: int,
+                            num_splits: int, timer_s: float,
+                            message_index: int):
+        """Message 313 - Split Summary
+
+        Aggregate totals per split type. Garmin Connect reads this
+        to populate Work Time (type=3) and Rest Time (type=4) in
+        the activity header.
+        """
+        fields = [
+            (253, 4, 134),  # timestamp
+            (0, 1, 0),      # split_type
+            (3, 2, 132),    # num_splits
+            (4, 4, 134),    # total_timer_time (ms)
+            (254, 2, 132),  # message_index
+        ]
+        local = self._ensure_defined(313, fields)
+        self._data(local, struct.pack(
+            '<IBHIH',
+            fit_timestamp(ts),
+            split_type,
+            num_splits,
+            int(timer_s * 1000),
+            message_index,
+        ))
 
     def build(self) -> bytes:
         """Build final FIT file with header and CRC."""

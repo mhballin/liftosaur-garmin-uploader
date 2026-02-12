@@ -15,6 +15,8 @@ from .fit.constants import (
     EVENT_TYPE_STOP_ALL,
     SET_TYPE_ACTIVE,
     SET_TYPE_REST,
+    SPLIT_TYPE_ACTIVE,
+    SPLIT_TYPE_REST,
 )
 from .fit.encoder import FitEncoder
 from .fit.utils import fit_local_timestamp, parse_iso, resolve_timezone
@@ -28,11 +30,8 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
     Message ordering follows the Garmin spec:
     file_id -> device_settings -> user_profile -> zones_target -> file_creator ->
     device_info -> event(start) -> sport -> exercise_titles ->
-    records/device_info (interleaved) -> sets (active + rest) ->
-    session -> event(stop) -> device_info(end) -> activity
-
-    NOTE: Split and split_summary messages are NOT included because
-    real Fenix 7 strength training FIT files do not contain them.
+    sets (active + rest) -> splits -> split_summaries -> session ->
+    event(stop) -> device_info(end) -> activity
     """
     if not sets:
         raise ValueError("Workout has no sets to encode.")
@@ -108,15 +107,7 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
                 exercise_name=ex_id,
             )
 
-        # 10. Record and device_info messages interleaved during the workout
-        #     Records at 1-second intervals, device_info every 30 seconds
-        for offset_s in range(int(total_elapsed) + 1):
-            ts = workout_start + timedelta(seconds=offset_s)
-            encoder.write_record(ts, heart_rate=64)
-            if offset_s > 0 and offset_s % 30 == 0:
-                encoder.write_device_info(ts, device_index=0)
-
-        # 11. Sets (active + rest, NO splits) ────────────────────────────
+        # 10. Sets (active + rest) + collect split data ──────────────────
         prev_end_time: datetime | None = None
         prev_category_id: int = 65534
         prev_exercise_id: int = 0
@@ -124,6 +115,8 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
         set_count: int = 0
         message_index: int = 0
         active_timer_s: float = 0.0
+        rest_timer_s: float = 0.0
+        split_records: list[dict] = []
 
         for idx, row in enumerate(sets):
             # Update diagnostic context before processing this set
@@ -190,7 +183,14 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
                     message_index=message_index,
                     wkt_step_index=0,
                 )
+                split_records.append({
+                    "type": SPLIT_TYPE_REST,
+                    "duration": rest_duration,
+                    "start": prev_end_time,
+                    "end": set_start,
+                })
                 message_index += 1
+                rest_timer_s += rest_duration
 
             # ── Write active set ───────────────────────────────────────
             encoder.write_set(
@@ -205,6 +205,12 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
                 message_index=message_index,
                 wkt_step_index=0,
             )
+            split_records.append({
+                "type": SPLIT_TYPE_ACTIVE,
+                "duration": set_duration,
+                "start": set_start,
+                "end": set_end,
+            })
             message_index += 1
             active_timer_s += set_duration
 
@@ -214,24 +220,57 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
             prev_exercise_name = exercise_name
             set_count += 1
 
-        # 12. session
-        # NOTE: timer_s = total_elapsed so the header shows full workout duration.
-        # Garmin calculates Work Time / Rest Time from individual set messages.
+        # 10b. Split messages (one per set) ─────────────────────────────
+        for split_idx, sr in enumerate(split_records):
+            encoder.write_split(
+                ts=workout_end,
+                split_type=sr["type"],
+                elapsed_s=sr["duration"],
+                start_time=sr["start"],
+                end_time=sr["end"],
+                message_index=split_idx,
+            )
+
+        # 10c. Split summaries (active + rest totals) ───────────────────
+        active_splits = sum(1 for s in split_records if s["type"] == SPLIT_TYPE_ACTIVE)
+        rest_splits = sum(1 for s in split_records if s["type"] == SPLIT_TYPE_REST)
+        summary_idx = 0
+        if active_splits:
+            encoder.write_split_summary(
+                ts=workout_end,
+                split_type=SPLIT_TYPE_ACTIVE,
+                num_splits=active_splits,
+                timer_s=active_timer_s,
+                message_index=summary_idx,
+            )
+            summary_idx += 1
+        if rest_splits:
+            encoder.write_split_summary(
+                ts=workout_end,
+                split_type=SPLIT_TYPE_REST,
+                num_splits=rest_splits,
+                timer_s=rest_timer_s,
+                message_index=summary_idx,
+            )
+
+        # 11. session
+        num_laps = len(split_records)
         encoder.write_session(
             ts=workout_end,
             start=workout_start,
             elapsed_s=total_elapsed,
             timer_s=total_elapsed,
             total_reps=total_reps,
+            num_laps=num_laps,
         )
 
-        # 13. event(stop)
+        # 12. event(stop)
         encoder.write_event(workout_end, event_type=EVENT_TYPE_STOP_ALL)
 
-        # 14. device_info (end)
+        # 13. device_info (end)
         encoder.write_device_info(workout_end, device_index=0)
 
-        # 15. activity
+        # 14. activity
         encoder.write_activity(
             workout_end,
             total_elapsed,
