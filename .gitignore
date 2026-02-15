@@ -2,31 +2,38 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.fit
-FitSDKRelease_*/
-FitSDKRelease_21.188.00.zip
+*.egg-info/
+dist/
+build/
 .venv/
 venv/
 .env
 .env.*
 .pytest_cache/
 .mypy_cache/
-.dist/
-.build/
-build/
-dist/
-*.egg-info/
 
-# Local tools
-tools/
-
-# Test fixtures and output
-tests/fixtures/**/*.csv
-tests/output/**/*.fit
+tests/fixtures/csv/*.csv
+tests/fixtures/fit/*.fit
 tests/output/
 
-# Local tree snapshot
-tree.txt
+# Garmin auth tokens
+.garth/
+**/garth/oauth*.json
 
-# TODO file
-TODO.MD
+# User config directory
+.liftosaur_garmin/
+
+# FIT SDK (download separately)
+tools/
+FitSDKRelease_*/
+
+# Generated output
+*.fit
+
+# OS / IDE
+.DS_Store
+.vscode/
+*.code-workspace
+
+# Local snapshots
+tree.txt
