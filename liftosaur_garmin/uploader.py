@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import tempfile
 import time
+from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -110,3 +112,95 @@ def upload_to_garmin(fit_bytes: bytes) -> None:
                 raise RuntimeError(f"Upload failed: {exc}") from exc
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def _normalize_weight_kg(value: float, unit: str | None = None) -> float | None:
+    if unit:
+        unit_lower = unit.lower()
+        if unit_lower in {"lb", "lbs", "pound", "pounds"}:
+            from .exercise.duration import lbs_to_kg
+
+            return lbs_to_kg(value)
+
+    if value > 500:
+        return value / 1000.0
+    return value
+
+
+def _extract_weight_samples(payload: Any) -> list[dict]:
+    if isinstance(payload, dict):
+        for key in ("weightSamples", "weights", "weightSample", "entries"):
+            samples = payload.get(key)
+            if isinstance(samples, list):
+                return samples
+    if isinstance(payload, list):
+        return payload
+    return []
+
+
+def _sample_timestamp(sample: dict) -> int:
+    for key in ("date", "timestamp", "startTimeGMT", "calendarDate"):
+        value = sample.get(key)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    return 0
+
+
+def fetch_latest_weight_kg() -> float | None:
+    """Fetch the most recent body weight from Garmin Connect via garth."""
+    try:
+        import garth
+    except ImportError as exc:
+        raise RuntimeError("'garth' is not installed. Run: pip install garth") from exc
+
+    if not GARTH_DIR.exists():
+        logger.debug("No Garmin credentials found for weight lookup")
+        return None
+
+    try:
+        garth.resume(str(GARTH_DIR))
+    except Exception as exc:
+        logger.debug(f"Failed to resume Garmin session for weight lookup: {exc}")
+        return None
+
+    end_date = date.today()
+    start_date = end_date - timedelta(days=365)
+    params = {
+        "startDate": start_date.isoformat(),
+        "endDate": end_date.isoformat(),
+    }
+    url = "https://connect.garmin.com/modern/proxy/weight-service/weight/range"
+
+    try:
+        response = garth.client.get(url, params=params)
+        payload = response.json() if hasattr(response, "json") else response
+    except Exception as exc:
+        logger.debug(f"Garmin weight fetch failed: {exc}")
+        return None
+
+    samples = _extract_weight_samples(payload)
+    if not samples:
+        logger.debug("No weight samples found in Garmin response")
+        return None
+
+    latest = max(samples, key=_sample_timestamp)
+    value = latest.get("weight") or latest.get("value") or latest.get("weightKg")
+    if value is None:
+        logger.debug("Latest Garmin weight sample missing value")
+        return None
+
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        logger.debug("Latest Garmin weight sample value is not numeric")
+        return None
+
+    unit = latest.get("unit") or latest.get("weightUnit")
+    normalized = _normalize_weight_kg(numeric, unit)
+    if normalized is None:
+        return None
+
+    logger.debug(f"Garmin weight sample: {normalized:.2f} kg")
+    return normalized
