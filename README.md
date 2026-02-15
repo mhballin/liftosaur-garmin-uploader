@@ -25,6 +25,17 @@ Notes:
 - Tests that rely on validation are skipped if FitCSVTool.jar is not present.
 - If validation fails, use the comparison tool to see differences.
 
+## Calorie Estimation
+
+Optional calorie estimation uses a simple duration x bodyweight formula from
+StrengthLog: $calories = minutes * weight_kg * 0.0713$. This is not
+heart-rate-based and is meant to avoid zero-calorie sessions in Garmin Connect.
+
+Weight source priority:
+1. Garmin Connect most recent weigh-in (via garth)
+2. Fallback weight saved during `--setup`
+3. Disabled or missing weight -> calories set to 0
+
 ## Testing
 
 - Put sample CSV files in tests/fixtures/csv/

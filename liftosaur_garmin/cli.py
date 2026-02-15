@@ -10,15 +10,51 @@ from collections import OrderedDict
 from pathlib import Path
 import tempfile
 
+from .config import load_config, save_config
 from .csv_parser import group_workouts, parse_csv
+from .exercise.duration import lbs_to_kg
 from .fit.utils import parse_iso, resolve_timezone
 from .history import get_new_workouts, load_history, mark_uploaded
 from .logging_config import setup_logging
-from .uploader import garmin_setup, upload_to_garmin
+from .uploader import fetch_latest_weight_kg, garmin_setup, upload_to_garmin
 from .workout_builder import build_fit_for_workout
 from .validation import validate_fit_file
 
 logger = logging.getLogger(__name__)
+
+
+def _prompt_yes_no(question: str, default: bool = False) -> bool:
+    suffix = "Y/n" if default else "y/N"
+    while True:
+        raw = input(f"{question} ({suffix}): ").strip().lower()
+        if not raw:
+            return default
+        if raw in {"y", "yes"}:
+            return True
+        if raw in {"n", "no"}:
+            return False
+        print("Please enter y or n.")
+
+
+def _prompt_weight_kg() -> float:
+    while True:
+        raw_value = input("Body weight fallback (used if Garmin unavailable) value: ").strip()
+        if not raw_value:
+            print("Please enter a number.")
+            continue
+        try:
+            value = float(raw_value)
+        except ValueError:
+            print("Invalid number; try again.")
+            continue
+
+        unit = input("Unit (kg/lb): ").strip().lower() or "lb"
+        if unit not in {"kg", "lb", "lbs"}:
+            print("Invalid unit; use kg or lb.")
+            continue
+        if unit in {"lb", "lbs"}:
+            return lbs_to_kg(value)
+        return value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -151,6 +187,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.setup:
         try:
             garmin_setup()
+            config = load_config()
+            enable_calories = _prompt_yes_no(
+                "Estimate calories for workouts?", default=config.get("calories_enabled", False)
+            )
+            config["calories_enabled"] = enable_calories
+            if enable_calories:
+                weight_kg = _prompt_weight_kg()
+                config["fallback_weight_kg"] = round(weight_kg, 2)
+            else:
+                config["fallback_weight_kg"] = None
+            save_config(config)
+            logger.info("✅ Calorie settings saved")
             return 0
         except RuntimeError as exc:
             logger.error(f"❌ {exc}")
@@ -216,6 +264,23 @@ def main(argv: list[str] | None = None) -> int:
         logger.error(f"❌ {exc}")
         return 1
 
+    config = load_config()
+    calories_enabled = bool(config.get("calories_enabled"))
+    fallback_weight_kg = config.get("fallback_weight_kg")
+    resolved_weight_kg: float | None = None
+    if calories_enabled:
+        try:
+            resolved_weight_kg = fetch_latest_weight_kg()
+        except RuntimeError as exc:
+            logger.warning(f"⚠️  Garmin weight fetch failed: {exc}")
+        if resolved_weight_kg is None and fallback_weight_kg is not None:
+            try:
+                resolved_weight_kg = float(fallback_weight_kg)
+            except (TypeError, ValueError):
+                resolved_weight_kg = None
+        if resolved_weight_kg is None:
+            logger.warning("⚠️  Calories enabled but no weight available; calories set to 0")
+
     failures: list[tuple[str, str]] = []
 
     for workout_datetime, sets in selected:
@@ -239,7 +304,12 @@ def main(argv: list[str] | None = None) -> int:
         logger.info(f"   {', '.join(parts)}")
 
         try:
-            fit_bytes = build_fit_for_workout(sets, tzinfo=local_tz)
+            fit_bytes = build_fit_for_workout(
+                sets,
+                tzinfo=local_tz,
+                calories_enabled=calories_enabled,
+                weight_kg=resolved_weight_kg,
+            )
         except Exception as exc:
             reason = f"build error: {exc}"
             logger.error(f"   ❌ {reason}")

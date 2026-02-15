@@ -24,7 +24,12 @@ from .fit.utils import fit_local_timestamp, parse_iso, resolve_timezone
 logger = logging.getLogger(__name__)
 
 
-def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> bytes:
+def build_fit_for_workout(
+    sets: list[dict],
+    tzinfo: tzinfo | None = None,
+    calories_enabled: bool = False,
+    weight_kg: float | None = None,
+) -> bytes:
     """Build a FIT strength training activity from Liftosaur set rows.
 
     Message ordering follows the Garmin spec:
@@ -55,6 +60,11 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
 
         workout_end = last_time + timedelta(seconds=30)
         total_elapsed = (workout_end - workout_start).total_seconds()
+        duration_minutes = total_elapsed / 60.0
+        if calories_enabled and weight_kg is not None:
+            total_calories = int(duration_minutes * weight_kg * 0.0713)
+        else:
+            total_calories = 0
 
         # ── Get unique exercises (preserving order) ─────────────────────
         unique_exercises: list[tuple[str, int, int]] = []
@@ -81,7 +91,7 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
         encoder.write_device_settings(workout_start)
 
         # 3. user_profile
-        encoder.write_user_profile()
+        encoder.write_user_profile(weight_kg=weight_kg)
 
         # 4. zones_target
         encoder.write_zones_target()
@@ -262,6 +272,7 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
             timer_s=total_elapsed,
             total_reps=total_reps,
             num_laps=num_laps,
+            total_calories=total_calories,
         )
 
         # 12. event(stop)
@@ -299,6 +310,16 @@ def build_fit_for_workout(sets: list[dict], tzinfo: tzinfo | None = None) -> byt
         raise
 
 
-def build_fit(sets: list[dict], tzinfo: tzinfo | None = None) -> bytes:
+def build_fit(
+    sets: list[dict],
+    tzinfo: tzinfo | None = None,
+    calories_enabled: bool = False,
+    weight_kg: float | None = None,
+) -> bytes:
     """Compatibility wrapper for building a FIT payload."""
-    return build_fit_for_workout(sets, tzinfo=tzinfo)
+    return build_fit_for_workout(
+        sets,
+        tzinfo=tzinfo,
+        calories_enabled=calories_enabled,
+        weight_kg=weight_kg,
+    )

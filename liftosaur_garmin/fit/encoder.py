@@ -83,9 +83,12 @@ class FitEncoder:
             fit_timestamp(ts),  # clock_time
         ))
 
-    def write_user_profile(self):
+    def write_user_profile(self, weight_kg: float | None = None):
         """Message 3 - User Profile"""
         name_bytes = b'User\x00'
+        weight_value = 800
+        if weight_kg is not None:
+            weight_value = max(0, int(round(weight_kg * 10)))
         fields = [
             (0, len(name_bytes), 7), (1, 1, 0), (2, 1, 2), (3, 1, 2),
             (4, 2, 132), (5, 1, 0), (8, 1, 2), (11, 1, 2),
@@ -97,7 +100,7 @@ class FitEncoder:
             0,    # gender (female)
             30,   # age
             175,  # height (1.75m)
-            800,  # weight (80.0kg)
+            weight_value,  # weight (0.1kg)
             0,    # language (english)
             60,   # resting_heart_rate
             190,  # default_max_heart_rate
@@ -145,7 +148,7 @@ class FitEncoder:
 
     def write_session(self, ts: datetime, start: datetime,
                       elapsed_s: float, timer_s: float, total_reps: int,
-                      num_laps: int = 1):
+                      num_laps: int = 1, total_calories: int = 0):
         """Message 18 - Session"""
         fields = [
             (253, 4, 134), (0, 1, 0), (1, 1, 0), (2, 4, 134),
@@ -160,7 +163,7 @@ class FitEncoder:
             fit_timestamp(ts), EVENT_SESSION, EVENT_TYPE_STOP,
             fit_timestamp(start), SPORT_TRAINING, SUB_SPORT_STRENGTH_TRAINING,
             int(elapsed_s * 1000), int(timer_s * 1000),
-            0, total_reps, 0,
+            0, total_reps, total_calories,
             0, num_laps, 0, 0
         ))
 
