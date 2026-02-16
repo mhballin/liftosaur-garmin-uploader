@@ -4,13 +4,7 @@ Bridge the gap between [Liftosaur](https://www.liftosaur.com/) and [Garmin Conne
 
 Uploaded workouts appear as native Garmin activities with full support for Training Effect, Training Status, badges, and workout history.
 
-I made this becuase i wanted to see my workouts in Garmin Connect without manually re-entering them or relying on third-party sync tools. The tool runs in the background, so once it's set up, you can just export your workout from Liftosaur and it will automatically show up in Garmin Connect within a few minutes.
-
-I have fully vibe coded this so it probably has a lot of bugs and edge cases I haven't thought of. If you run into any issues, please open an issue or PR!
-
-The program will initally upload every workout you have in liftosaur but it will keep track of what it has uploaded so you won't get duplicates if you run it again. You can also use the `--force` flag to re-upload if needed. If you dont want to upload everything right away, you can move the files out of the watched folder and into it one by one to trigger uploads at your own pace. 
-
-All the data (ie what has been uploaded, user preferences, etc) is stored locally in `~/.liftosaur_garmin/` and is organized by profile if you have multiple users. 
+I made this because I wanted to see my workouts in Garmin Connect without manually re-entering them or relying on third-party sync tools. I have fully vibe coded this so it probably has bugs and edge cases I haven't thought of. If you run into any issues, please open an issue or PR!
 
 ---
 
@@ -18,8 +12,8 @@ All the data (ie what has been uploaded, user preferences, etc) is stored locall
 
 ```
 📱 Liftosaur (iPhone)
- ↓  Export CSV 
- ↓  Automatically move files to iCloud Drive (via iOS Shortcut + automation)
+ ↓  Export CSV
+ ↓  Automatically moved to iCloud Drive (via iOS Shortcut + automation)
 ☁️  iCloud Drive / watched folder
  ↓  Auto-detected by background file watcher
 💻 liftosaur-garmin (this tool)
@@ -28,6 +22,10 @@ All the data (ie what has been uploaded, user preferences, etc) is stored locall
 ```
 
 Once installed, the tool runs in the background. Export a CSV from Liftosaur, and within minutes it's parsed, converted to a FIT file, validated, and uploaded to Garmin Connect. No commands to run, nothing to remember — it just works.
+
+On first run, the tool will upload every workout in your Liftosaur export. After that, it tracks what's been uploaded so you won't get duplicates. If you don't want to upload everything at once, move files into the watched folder one at a time to upload at your own pace.
+
+All data (upload history, preferences, Garmin tokens) is stored locally in `~/.liftosaur_garmin/` and organized by profile if you have multiple users.
 
 ---
 
@@ -55,7 +53,7 @@ The tool has been developed and tested on macOS using iCloud Drive to transfer C
 source install.sh
 ```
 
-The installer creates a virtual environment, installs all dependencies, and launches the setup wizard. The wizard walks you through connecting your Garmin account, configuring preferences, and setting up the automatic file watcher. Everything is handled in one go — when the installer finishes, the tool is fully configured and running.
+The installer creates a virtual environment, installs all dependencies, and launches the setup wizard. The wizard walks you through connecting your Garmin account, configuring preferences, and setting up the automatic file watcher. When the installer finishes, the tool is fully configured and running.
 
 If you'd rather activate the environment yourself afterward:
 
@@ -63,6 +61,17 @@ If you'd rather activate the environment yourself afterward:
 bash install.sh
 source .venv/bin/activate
 ```
+
+<details>
+<summary>Alternative: clone with git</summary>
+
+```bash
+git clone https://github.com/mhballin/liftosaur-garmin-uploader.git
+cd liftosaur-garmin-uploader
+source install.sh
+```
+
+</details>
 
 ### macOS: iCloud Drive Permission
 
@@ -74,9 +83,7 @@ If your watched folder is in iCloud Drive, macOS requires Full Disk Access for t
 
 This is the core of the project. The background file watcher monitors a folder for new Liftosaur CSV exports. When a new file appears, it's automatically processed and uploaded.
 
-On macOS the watcher runs via `launchd` and checks for new files on a configurable interval (default: every 5 minutes). Linux support via `systemd` is also available.
-
-Let me know if you have made it work on Linux or Windows!
+On macOS the watcher runs via `launchd` and checks for new files on a configurable interval (default: every 5 minutes). Linux support via `systemd` is also available. Let me know if you've gotten it working on Linux or Windows!
 
 ### iOS Shortcut (Recommended Workflow)
 
@@ -84,10 +91,9 @@ For a seamless phone-to-Garmin experience:
 
 1. Finish your workout in Liftosaur
 2. Export your data as CSV (Me → Export History to CSV file → Press Ok)
-3. Use this iOS Shortcut to save the CSV to your a folder in icloud dirve (this shortcut will create the folder needed)
-		https://www.icloud.com/shortcuts/1dad4917516b4a7b833f66d62dd07cb6
+3. Use this [iOS Shortcut](https://www.icloud.com/shortcuts/1dad4917516b4a7b833f66d62dd07cb6) to save the CSV to a folder in iCloud Drive (the shortcut will create the folder if needed)
 4. The file watcher picks it up and uploads automatically
-5. Add a simple automation to run the shortcut if you leave the gym (or whatever you want)
+5. Optionally, add an iOS automation to run the shortcut when you leave the gym (or any trigger you prefer)
 
 ### Managing the Watcher
 
@@ -112,15 +118,45 @@ This opens an interactive menu to add, rename, switch, or delete profiles and ma
 
 ---
 
+## Features
+
+### Calorie Estimation
+
+Optionally estimate calories burned using research-backed formulas. The tool can pull your latest body weight from Garmin Connect or use a fallback you provide during setup.
+
+### Duplicate Prevention
+
+Every uploaded workout is tracked so re-processing the same CSV won't create duplicates. Use `--force` to override this if needed.
+
+### FIT Validation
+
+Generated FIT files are automatically validated using Garmin's FIT SDK before uploading. This catches issues before Garmin Connect silently rejects them. The SDK tool (`FitCSVTool.jar`) is included in the repo — no separate download needed.
+
+To manually validate a file:
+
+```bash
+liftosaur-garmin validate path/to/file.fit
+```
+
+---
+
 ## Uninstall
 
-To uninstall, simply remove the project directory and optionally delete the `~/.liftosaur_garmin/` folder where all user data is stored:
+Remove the project directory and optionally delete all user data:
 
 ```bash
 rm -rf liftosaur-garmin-uploader
 rm -rf ~/.liftosaur_garmin/
 ```
--- 
+
+On macOS, the file watcher launchd job will also need to be removed. Use `liftosaur-garmin --profiles` → Manage file watcher → Stop and remove before deleting, or manually:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.liftosaur.garmin-watcher.*.plist
+rm ~/Library/LaunchAgents/com.liftosaur.garmin-watcher.*.plist
+```
+
+---
 
 ## Manual Usage
 
@@ -169,28 +205,6 @@ liftosaur-garmin --list
 
 ---
 
-## Features
-
-### Calorie Estimation
-
-Optionally estimate calories burned using research-backed formulas. The tool can pull your latest body weight from Garmin Connect or use a fallback you provide during setup.
-
-### Duplicate Prevention
-
-Every uploaded workout is tracked. Re-running the tool on the same CSV won't create duplicates. Use `--force` to override this if needed.
-
-### FIT Validation
-
-Generated FIT files are automatically validated using Garmin's FIT SDK before uploading. This catches issues before Garmin Connect silently rejects them. The SDK tool (`FitCSVTool.jar`) is included in the repo — no separate download needed.
-
-To manually validate a file:
-
-```bash
-liftosaur-garmin validate path/to/file.fit
-```
-
----
-
 ## Project Structure
 
 ```
@@ -227,9 +241,6 @@ The tool attempts to re-authenticate automatically. If that fails, re-run the se
 
 **Watcher not detecting files**
 Check the log: `liftosaur-garmin --profiles` → Manage file watcher → View watcher log. Common causes: wrong watch folder, or missing Full Disk Access on macOS when using iCloud Drive.
-
-**Duplicate uploads**
-Upload history is stored per-profile in `~/.liftosaur_garmin/profiles/<name>/history.json`. Use `--force` to re-upload, or edit the history file directly.
 
 ---
 
