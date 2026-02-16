@@ -10,31 +10,31 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-HISTORY_PATH = Path.home() / ".liftosaur_garmin" / "history.json"
 
-
-def load_history() -> dict:
+def load_history(profile_dir: Path) -> dict:
     """Load upload history metadata."""
-    if HISTORY_PATH.exists():
-        with HISTORY_PATH.open("r", encoding="utf-8") as handle:
+    history_path = profile_dir / "history.json"
+    if history_path.exists():
+        with history_path.open("r", encoding="utf-8") as handle:
             history = json.load(handle)
-            logger.debug(f"Loaded upload history: {len(history)} workouts")
+            logger.debug("Loaded upload history: %s workouts", len(history))
             return history
-    logger.debug("No upload history found")
+    logger.debug("No upload history found at %s", history_path)
     return {}
 
 
-def save_history(history: dict) -> None:
+def save_history(history: dict, profile_dir: Path) -> None:
     """Persist upload history metadata."""
-    HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with HISTORY_PATH.open("w", encoding="utf-8") as handle:
+    history_path = profile_dir / "history.json"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    with history_path.open("w", encoding="utf-8") as handle:
         json.dump(history, handle, indent=2)
-    logger.debug(f"Saved upload history: {len(history)} workouts")
+    logger.debug("Saved upload history: %s workouts", len(history))
 
 
-def mark_uploaded(workout_datetime: str, sets: list[dict]) -> None:
+def mark_uploaded(workout_datetime: str, sets: list[dict], profile_dir: Path) -> None:
     """Record a workout upload in history."""
-    history = load_history()
+    history = load_history(profile_dir)
     history[workout_datetime] = {
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "total_rows": len(sets),
@@ -43,16 +43,24 @@ def mark_uploaded(workout_datetime: str, sets: list[dict]) -> None:
             OrderedDict.fromkeys(row.get("Exercise", "") for row in sets)
         ),
     }
-    save_history(history)
-    logger.info(f"Marked workout {workout_datetime} as uploaded")
+    save_history(history, profile_dir)
+    logger.info("Marked workout %s as uploaded", workout_datetime)
 
 
-def get_new_workouts(workouts: OrderedDict[str, list[dict]], force: bool) -> OrderedDict[str, list[dict]]:
+def get_new_workouts(
+    workouts: OrderedDict[str, list[dict]],
+    force: bool,
+    profile_dir: Path,
+) -> OrderedDict[str, list[dict]]:
     """Return workouts not yet uploaded unless force is enabled."""
     if force:
         logger.debug("Forcing all workouts (ignoring history)")
         return workouts
-    history = load_history()
+    history = load_history(profile_dir)
     new = OrderedDict((key, value) for key, value in workouts.items() if key not in history)
-    logger.debug(f"Found {len(new)} new workouts ({len(history)} already uploaded)")
+    logger.debug(
+        "Found %s new workouts (%s already uploaded)",
+        len(new),
+        len(history),
+    )
     return new

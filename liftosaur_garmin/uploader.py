@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import getpass
 import logging
 import tempfile
 import time
@@ -11,7 +12,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-GARTH_DIR = Path.home() / ".garth"
 AUTH_ERROR_HINTS = (
     "401",
     "unauthorized",
@@ -38,8 +38,9 @@ def _is_rate_limited(message: str) -> bool:
     return _matches_any(message, RATE_LIMIT_HINTS)
 
 
-def garmin_setup() -> None:
+def garmin_setup(profile_dir: Path) -> None:
     """Authenticate with Garmin Connect and store tokens locally."""
+    garth_dir = profile_dir / "garth"
     try:
         import garth
     except ImportError as exc:
@@ -48,34 +49,35 @@ def garmin_setup() -> None:
     logger.info("🔐 Garmin Connect Authentication")
     logger.info("=" * 40)
     email = input("Email: ").strip()
-    password = input("Password: ").strip()
+    password = getpass.getpass("Password: ").strip()
 
     try:
-        logger.debug(f"Attempting login for {email}...")
+        logger.debug("Attempting login for %s...", email)
         garth.login(email, password)
-        garth.save(str(GARTH_DIR))
-        logger.info(f"✅ Authenticated! Tokens saved to {GARTH_DIR}")
+        garth.save(str(garth_dir))
+        logger.info("✅ Authenticated! Tokens saved to %s", garth_dir)
     except Exception as exc:
         raise RuntimeError(f"Authentication failed: {exc}") from exc
 
 
-def upload_to_garmin(fit_bytes: bytes) -> None:
+def upload_to_garmin(fit_bytes: bytes, profile_dir: Path) -> None:
     """Upload a FIT payload to Garmin Connect."""
     try:
         import garth
     except ImportError as exc:
         raise RuntimeError("'garth' is not installed. Run: pip install garth") from exc
 
-    if GARTH_DIR.exists():
+    garth_dir = profile_dir / "garth"
+    if garth_dir.exists():
         try:
             logger.debug("Resuming Garmin session from saved credentials...")
-            garth.resume(str(GARTH_DIR))
+            garth.resume(str(garth_dir))
         except Exception as exc:
             message = str(exc)
             if _is_auth_error(message):
                 logger.warning("Garmin token expired; re-authenticating...")
-                garmin_setup()
-                garth.resume(str(GARTH_DIR))
+                garmin_setup(profile_dir)
+                garth.resume(str(garth_dir))
             else:
                 raise RuntimeError(f"Authentication failed: {exc}") from exc
     else:
@@ -100,8 +102,8 @@ def upload_to_garmin(fit_bytes: bytes) -> None:
                     return
                 if _is_auth_error(message) and not reauthed:
                     logger.warning("Upload auth expired; re-authenticating...")
-                    garmin_setup()
-                    garth.resume(str(GARTH_DIR))
+                    garmin_setup(profile_dir)
+                    garth.resume(str(garth_dir))
                     reauthed = True
                     continue
                 if _is_rate_limited(message) and attempt < max_attempts:
@@ -148,19 +150,20 @@ def _sample_timestamp(sample: dict) -> int:
     return 0
 
 
-def fetch_latest_weight_kg() -> float | None:
+def fetch_latest_weight_kg(profile_dir: Path) -> float | None:
     """Fetch the most recent body weight from Garmin Connect via garth."""
     try:
         import garth
     except ImportError as exc:
         raise RuntimeError("'garth' is not installed. Run: pip install garth") from exc
 
-    if not GARTH_DIR.exists():
+    garth_dir = profile_dir / "garth"
+    if not garth_dir.exists():
         logger.debug("No Garmin credentials found for weight lookup")
         return None
 
     try:
-        garth.resume(str(GARTH_DIR))
+        garth.resume(str(garth_dir))
     except Exception as exc:
         logger.debug(f"Failed to resume Garmin session for weight lookup: {exc}")
         return None

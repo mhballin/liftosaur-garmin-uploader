@@ -6,7 +6,7 @@ setup(
     description="Convert Liftosaur workouts to Garmin FIT and upload",
     packages=find_packages(),
     python_requires=">=3.10",
-    install_requires=["garth"],
+    install_requires=["garth", "pytest", "fitparse"],
     entry_points={
         "console_scripts": [
             "liftosaur-garmin=liftosaur_garmin.cli:main",
