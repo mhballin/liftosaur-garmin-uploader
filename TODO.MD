@@ -272,43 +272,6 @@ Make it installable with `pip install liftosaur-garmin-uploader`.
 
 ---
 
-## Phase 8: Multi-User Profiles 👥
-
-Support multiple people with isolated Garmin accounts, upload histories, and watch folders.
-
-### Target structure
-
-```
-~/.liftosaur_garmin/
-├── config.json                    ← Global config (default profile, calories settings)
-├── profiles/
-│   ├── mike/
-│   │   ├── config.json            ← Per-user settings (timezone, watch folder, calories)
-│   │   ├── garth/                 ← Garmin OAuth tokens
-│   │   └── history.json           ← Upload history
-│   └── sarah/
-│       ├── config.json
-│       ├── garth/
-│       └── history.json
-```
-
-### Implementation steps
-
-- [ ] Create `liftosaur_garmin/profile.py` — ProfileManager class
-- [ ] Update `history.py` — accept `history_file: Path` parameter instead of hardcoded `HISTORY_PATH`
-- [ ] Update `uploader.py` — accept `garth_dir: Path` parameter instead of hardcoded `GARTH_DIR`
-- [ ] Update `cli.py` — add `--profile` flag
-- [ ] Legacy migration — auto-detect old flat structure, move to `profiles/default/`
-- [ ] Profile-aware file watcher — map iCloud subfolders to profiles
-
-### Design constraints
-
-- No database, no web UI — JSON files + CLI
-- No new dependencies — `json` is stdlib
-- Fully backward compatible with existing single-user setup
-
----
-
 ## Future Enhancements (Don't Build Yet)
 
 - [ ] **Cloud automation** — migrate file watcher to a cloud function (AWS Lambda / Google Cloud Function) to remove Mac dependency; iOS Shortcut would POST directly to cloud endpoint
