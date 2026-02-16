@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="liftosaur-garmin-uploader",
-    version="0.1.0",
+    version="1.1.1",
     description="Convert Liftosaur workouts to Garmin FIT and upload",
     packages=find_packages(),
     python_requires=">=3.10",
