@@ -199,8 +199,8 @@ If 5a finds anything sensitive that was ever committed:
   ```bash
   git filter-repo --path <sensitive_file> --invert-paths
   ```
-- [ ] Force push to rewrite remote history
-- [ ] Rotate any exposed credentials (change Garmin password, recreate garth tokens)
+- [x] Force push to rewrite remote history
+- [x] Rotate any exposed credentials (change Garmin password, recreate garth tokens)
 
 **Note:** This rewrites all commit hashes. Do it once, before anyone else has cloned the repo.
 
