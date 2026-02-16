@@ -6,6 +6,11 @@ Tools to convert Liftosaur CSV workouts to Garmin FIT and upload.
 
 macOS/Linux:
 
+Run with 'source' to auto-activate the venv when done:
+
+	source install.sh
+Or run normally (you'll need to activate manually after):
+
 	bash install.sh
 
 Windows:

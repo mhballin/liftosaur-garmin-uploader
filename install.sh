@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Run with 'source' to auto-activate the venv when done:
+#   source install.sh
+# Or run normally (you'll need to activate manually after):
+#   bash install.sh
+
 cd "$(dirname "$0")"
 
 echo "🏋️ Liftosaur → Garmin Uploader — Installer"
@@ -55,9 +60,13 @@ fi
 echo ""
 echo "✅ Installation complete!"
 echo ""
-echo "To use the tool, either:"
-echo "  source .venv/bin/activate"
-echo "  liftosaur-garmin --help"
+echo "To activate the virtual environment in your current shell, run:"
 echo ""
-echo "Or run directly:"
-echo "  .venv/bin/liftosaur-garmin --help"
+echo "  source .venv/bin/activate"
+echo ""
+
+# Auto-activate if the script was sourced instead of executed
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  source .venv/bin/activate
+  echo "✅ Virtual environment activated!"
+fi
