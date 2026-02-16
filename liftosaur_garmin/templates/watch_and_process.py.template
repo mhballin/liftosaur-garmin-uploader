@@ -4,6 +4,7 @@ import glob
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -30,6 +31,20 @@ def mark_processed(name):
     with open(PROCESSED_FILE, "a") as f:
         f.write(name + "\n")
 
+def wait_for_file_ready(filepath, timeout=30, interval=1):
+    start = time.time()
+    prev_size = -1
+    while time.time() - start < timeout:
+        try:
+            size = os.path.getsize(filepath)
+        except OSError:
+            size = -1
+        if size > 0 and size == prev_size:
+            return True
+        prev_size = size
+        time.sleep(interval)
+    return False
+
 log("--- Watcher triggered ---")
 log(f"Watch dir: {WATCH_DIR}")
 log(f"Watch dir exists: {os.path.isdir(WATCH_DIR)}")
@@ -50,6 +65,9 @@ for csv_file in sorted(glob.glob(os.path.join(WATCH_DIR, "liftosaur_*.csv"))):
         continue
     found_new = True
     log(f"New file: {basename}")
+    if not wait_for_file_ready(csv_file):
+        log(f"Skipping {basename}: file not ready")
+        continue
     cmd = [PYTHON, "-m", "liftosaur_garmin", csv_file, "--all", "--profile", PROFILE, "--verbose"]
     log(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)

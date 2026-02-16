@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import csv
+import errno
 import logging
+import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Iterable
@@ -32,33 +34,44 @@ def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]
         raise ValueError(f"Expected a .csv file, got: {filepath.suffix}")
 
     rows: list[dict] = []
-    with filepath.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames is None:
-            raise ValueError("CSV appears to be empty or has no header row.")
+    max_attempts = 5
+    delay_seconds = 0.5
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with filepath.open("r", encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle)
+                if reader.fieldnames is None:
+                    raise ValueError("CSV appears to be empty or has no header row.")
 
-        actual = set(reader.fieldnames)
-        missing = REQUIRED_CSV_COLUMNS - actual
-        if missing:
-            missing_list = ", ".join(sorted(missing))
-            found_list = ", ".join(sorted(actual))
-            raise ValueError(
-                f"CSV is missing required columns: {missing_list}. "
-                f"Found columns: {found_list}"
-            )
+                actual = set(reader.fieldnames)
+                missing = REQUIRED_CSV_COLUMNS - actual
+                if missing:
+                    missing_list = ", ".join(sorted(missing))
+                    found_list = ", ".join(sorted(actual))
+                    raise ValueError(
+                        f"CSV is missing required columns: {missing_list}. "
+                        f"Found columns: {found_list}"
+                    )
 
-        for row in reader:
-            wdt = (row.get("Workout DateTime") or "").strip()
-            if not wdt:
+                for row in reader:
+                    wdt = (row.get("Workout DateTime") or "").strip()
+                    if not wdt:
+                        continue
+                    try:
+                        parse_iso(wdt)
+                    except ValueError:
+                        logger.debug(f"Skipping row with invalid datetime: {wdt}")
+                        continue
+                    if workout_datetime and wdt != workout_datetime:
+                        continue
+                    rows.append(row)
+            break
+        except OSError as exc:
+            is_deadlock = getattr(exc, "errno", None) == errno.EDEADLK
+            if is_deadlock and attempt < max_attempts:
+                time.sleep(delay_seconds * attempt)
                 continue
-            try:
-                parse_iso(wdt)
-            except ValueError:
-                logger.debug(f"Skipping row with invalid datetime: {wdt}")
-                continue
-            if workout_datetime and wdt != workout_datetime:
-                continue
-            rows.append(row)
+            raise
 
     if not rows:
         raise ValueError("No valid rows found in CSV.")
