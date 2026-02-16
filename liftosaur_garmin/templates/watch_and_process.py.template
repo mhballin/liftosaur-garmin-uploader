@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Liftosaur → Garmin file watcher. Auto-generated — do not edit manually."""
+import glob
+import os
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+WATCH_DIR = "{{watch_dir}}"
+PYTHON = "{{python_path}}"
+PROFILE = "{{profile_name}}"
+LOG_FILE = "{{log_file}}"
+PROCESSED_FILE = "{{processed_file}}"
+
+def log(msg):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {msg}\n"
+    Path(LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
+    with open(LOG_FILE, "a") as f:
+        f.write(line)
+
+def get_processed():
+    p = Path(PROCESSED_FILE)
+    if p.exists():
+        return set(p.read_text().strip().splitlines())
+    return set()
+
+def mark_processed(name):
+    with open(PROCESSED_FILE, "a") as f:
+        f.write(name + "\n")
+
+log("--- Watcher triggered ---")
+log(f"Watch dir: {WATCH_DIR}")
+log(f"Watch dir exists: {os.path.isdir(WATCH_DIR)}")
+
+try:
+    contents = os.listdir(WATCH_DIR)
+    log(f"Watch dir contents: {contents}")
+except Exception as e:
+    log(f"Watch dir contents: ERROR - {e}")
+    contents = []
+
+processed = get_processed()
+found_new = False
+
+for csv_file in sorted(glob.glob(os.path.join(WATCH_DIR, "liftosaur_*.csv"))):
+    basename = os.path.basename(csv_file)
+    if basename in processed:
+        continue
+    found_new = True
+    log(f"New file: {basename}")
+    cmd = [PYTHON, "-m", "liftosaur_garmin", csv_file, "--all", "--profile", PROFILE, "--verbose"]
+    log(f"Running: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    with open(LOG_FILE, "a") as f:
+        if result.stdout:
+            f.write(result.stdout)
+        if result.stderr:
+            f.write(result.stderr)
+    if result.returncode == 0:
+        mark_processed(basename)
+        log(f"SUCCESS: {basename}")
+    else:
+        log(f"FAILED (exit {result.returncode}): {basename}")
+
+if not found_new:
+    log("No new CSV files found")
+
+log("--- Scan complete ---")

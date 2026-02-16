@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import platform
 import shutil
 import stat
@@ -16,14 +17,14 @@ def _log_and_validate_python_path(python_path: str) -> None:
     logger.info(f"Watcher will use Python: {python_path}")
     print(f"   Python: {python_path}")
 
-    expected_venv = (Path.cwd() / ".venv").resolve()
+    project_root = Path(__file__).resolve().parents[1]
+    expected_venv = (project_root / ".venv").resolve()
     resolved_python = Path(python_path).resolve()
-    expected_prefix = f"{expected_venv}{Path.sep}"
     in_expected_venv = False
     try:
         in_expected_venv = resolved_python.is_relative_to(expected_venv)
     except Exception:
-        in_expected_venv = str(resolved_python).startswith(expected_prefix)
+        in_expected_venv = expected_venv == resolved_python or expected_venv in resolved_python.parents
 
     if not in_expected_venv:
         warning = (
@@ -32,6 +33,32 @@ def _log_and_validate_python_path(python_path: str) -> None:
         )
         logger.warning(warning)
         print(f"   {warning}")
+
+
+def _maybe_warn_icloud_full_disk_access(watch_dir: Path, python_path: str) -> None:
+    if platform.system() != "Darwin":
+        return
+
+    icloud_root = Path(
+        "~/Library/Mobile Documents/com~apple~CloudDocs"
+    ).expanduser()
+    try:
+        in_icloud = watch_dir.is_relative_to(icloud_root)
+    except ValueError:
+        in_icloud = False
+
+    if not in_icloud:
+        return
+
+    print("ℹ️  iCloud Drive requires Full Disk Access for the background watcher.")
+    print("")
+    print("    To grant access:")
+    print("      1. Open System Settings → Privacy & Security → Full Disk Access")
+    print("      2. Click + and press Cmd+Shift+G")
+    print(f"      3. Paste this path: {python_path}")
+    print("      4. Toggle it on")
+    print("")
+    print("    The watcher won't detect files until this is done.")
 
 
 def get_default_watch_dir() -> Path | None:
@@ -73,6 +100,7 @@ def install_watcher(
 ) -> bool:
     """Install a watcher appropriate for the current OS."""
     _log_and_validate_python_path(python_path)
+    _maybe_warn_icloud_full_disk_access(watch_dir, python_path)
     system = platform.system()
     if system == "Darwin":
         return _install_launchd(
@@ -100,9 +128,9 @@ def _install_launchd(
     poll_interval: int | None = None,
 ) -> bool:
     profile_dir.mkdir(parents=True, exist_ok=True)
-    script_path = profile_dir / "watch_and_process.sh"
+    script_path = profile_dir / "watch_and_process.py"
     script_content = render_template(
-        "watch_and_process.sh.template",
+        "watch_and_process.py.template",
         {
             "watch_dir": watch_dir,
             "python_path": python_path,
@@ -127,6 +155,7 @@ def _install_launchd(
         "com.liftosaur.garmin-watcher.plist.template",
         {
             "profile_name": profile_name,
+            "python_path": python_path,
             "watcher_script_path": script_path,
             "poll_interval": resolved_interval,
             "profile_dir": profile_dir,
@@ -166,9 +195,9 @@ def _install_systemd(
         return False
 
     profile_dir.mkdir(parents=True, exist_ok=True)
-    script_path = profile_dir / "watch_and_process.sh"
+    script_path = profile_dir / "watch_and_process.py"
     script_content = render_template(
-        "watch_and_process.sh.template",
+        "watch_and_process.py.template",
         {
             "watch_dir": watch_dir,
             "python_path": python_path,
@@ -227,9 +256,10 @@ def uninstall_watcher(profile_name: str, profile_dir: Path) -> bool:
         )
         if plist_path.exists():
             plist_path.unlink()
-        script_path = profile_dir / "watch_and_process.sh"
-        if script_path.exists():
-            script_path.unlink()
+        for script_name in ("watch_and_process.py", "watch_and_process.sh"):
+            script_path = profile_dir / script_name
+            if script_path.exists():
+                script_path.unlink()
         print("✅ File watcher uninstalled")
         return True
 

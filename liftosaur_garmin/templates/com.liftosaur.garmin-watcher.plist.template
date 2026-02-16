@@ -7,7 +7,7 @@
     <string>com.liftosaur.garmin-watcher.{{profile_name}}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
+        <string>{{python_path}}</string>
         <string>{{watcher_script_path}}</string>
     </array>
     <key>StartInterval</key>
