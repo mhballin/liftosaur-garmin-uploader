@@ -15,9 +15,6 @@ venv/
 .pytest_cache/
 .mypy_cache/
 
-# Local tools
-tools/
-
 # Test fixtures and output
 tests/fixtures/**/*.csv
 tests/fixtures/**/*.fit
