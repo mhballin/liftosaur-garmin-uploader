@@ -4,7 +4,53 @@ Tools to convert Liftosaur CSV workouts to Garmin FIT and upload.
 
 ## Quick start
 
-python -m liftosaur_garmin --help
+macOS/Linux:
+
+	bash install.sh
+
+Windows:
+
+	install.bat
+
+The installer creates a local virtual environment, installs dependencies, and
+offers to run the setup wizard.
+
+After install, run:
+
+	liftosaur-garmin --help
+
+Or without activating the venv:
+
+	.venv/bin/liftosaur-garmin --help
+
+## Setup
+
+Run the setup wizard any time:
+
+	liftosaur-garmin --setup
+
+The wizard configures Garmin auth, calories, and optional file watching.
+
+## Profiles
+
+Profiles live under ~/.liftosaur_garmin/profiles/<name>. Each profile stores its
+own config, history, and Garmin tokens.
+
+Manage profiles via the interactive menu:
+
+	liftosaur-garmin --profiles
+
+The menu lets you add, rename, delete, and switch the default profile. It also
+includes a file watcher manager.
+
+## File watcher
+
+If enabled during setup, a watcher monitors a Liftosaur CSV folder and uploads
+new files automatically.
+
+- macOS uses launchd
+- Linux uses systemd user services (requires inotify-tools)
+- Windows is not supported yet
 
 ## Dev
 
