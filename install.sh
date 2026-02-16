@@ -6,18 +6,14 @@ cd "$(dirname "$0")"
 echo "🏋️ Liftosaur → Garmin Uploader — Installer"
 
 echo "Checking Python version..."
-PYTHON_CMD=""
+PYTHON_CMD="python3"
 PYTHON_VERSION=""
 
-if command -v python3 >/dev/null 2>&1; then
-  PYTHON_CMD="python3"
-  PYTHON_VERSION="$($PYTHON_CMD --version 2>&1 | awk '{print $2}')"
-elif command -v python >/dev/null 2>&1; then
-  PYTHON_CMD="python"
+if command -v "$PYTHON_CMD" >/dev/null 2>&1; then
   PYTHON_VERSION="$($PYTHON_CMD --version 2>&1 | awk '{print $2}')"
 fi
 
-if [[ -z "$PYTHON_CMD" || -z "$PYTHON_VERSION" ]]; then
+if [[ -z "$PYTHON_VERSION" ]]; then
   echo "❌ Python 3.10+ is required. Python was not found. Install from https://python.org"
   exit 1
 fi
@@ -40,7 +36,7 @@ if [[ -d ".venv" ]]; then
 fi
 
 if [[ ! -d ".venv" ]]; then
-  "$PYTHON_CMD" -m venv .venv
+  python3 -m venv .venv
 fi
 
 . .venv/bin/activate

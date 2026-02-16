@@ -12,6 +12,28 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def _log_and_validate_python_path(python_path: str) -> None:
+    logger.info(f"Watcher will use Python: {python_path}")
+    print(f"   Python: {python_path}")
+
+    expected_venv = (Path.cwd() / ".venv").resolve()
+    resolved_python = Path(python_path).resolve()
+    expected_prefix = f"{expected_venv}{Path.sep}"
+    in_expected_venv = False
+    try:
+        in_expected_venv = resolved_python.is_relative_to(expected_venv)
+    except Exception:
+        in_expected_venv = str(resolved_python).startswith(expected_prefix)
+
+    if not in_expected_venv:
+        warning = (
+            "⚠️  Watcher Python does not appear to be from this project's .venv: "
+            f"{expected_venv}"
+        )
+        logger.warning(warning)
+        print(f"   {warning}")
+
+
 def get_default_watch_dir() -> Path | None:
     """Return the default Liftosaur iCloud directory when available."""
     if platform.system() != "Darwin":
@@ -47,11 +69,19 @@ def install_watcher(
     profile_dir: Path,
     watch_dir: Path,
     python_path: str,
+    poll_interval: int | None = None,
 ) -> bool:
     """Install a watcher appropriate for the current OS."""
+    _log_and_validate_python_path(python_path)
     system = platform.system()
     if system == "Darwin":
-        return _install_launchd(profile_name, profile_dir, watch_dir, python_path)
+        return _install_launchd(
+            profile_name,
+            profile_dir,
+            watch_dir,
+            python_path,
+            poll_interval,
+        )
     if system == "Linux":
         return _install_systemd(profile_name, profile_dir, watch_dir, python_path)
 
@@ -67,6 +97,7 @@ def _install_launchd(
     profile_dir: Path,
     watch_dir: Path,
     python_path: str,
+    poll_interval: int | None = None,
 ) -> bool:
     profile_dir.mkdir(parents=True, exist_ok=True)
     script_path = profile_dir / "watch_and_process.sh"
@@ -83,12 +114,21 @@ def _install_launchd(
     script_path.write_text(script_content, encoding="utf-8")
     script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
 
+    resolved_interval = 300
+    if poll_interval is not None:
+        try:
+            resolved_interval = int(poll_interval)
+        except (TypeError, ValueError):
+            resolved_interval = 300
+    if resolved_interval <= 0:
+        resolved_interval = 300
+
     plist_content = render_template(
         "com.liftosaur.garmin-watcher.plist.template",
         {
             "profile_name": profile_name,
             "watcher_script_path": script_path,
-            "watch_dir": watch_dir,
+            "poll_interval": resolved_interval,
             "profile_dir": profile_dir,
         },
     )

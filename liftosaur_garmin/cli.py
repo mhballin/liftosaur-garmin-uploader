@@ -140,19 +140,48 @@ def _prompt_watch_dir() -> Path:
         print("Folder not found. Please enter a valid path.")
 
 
+def _prompt_poll_interval(default_seconds: int) -> int:
+    default_minutes = max(1, int(default_seconds // 60))
+    while True:
+        raw = input(
+            f"Check for new files every how many minutes? (default: {default_minutes}): "
+        ).strip()
+        if not raw:
+            return default_minutes * 60
+        try:
+            minutes = int(raw)
+        except ValueError:
+            print("Please enter a whole number.")
+            continue
+        if minutes <= 0:
+            print("Please enter a positive number.")
+            continue
+        return minutes * 60
+
+
 def _install_watcher_flow(profile_name: str, profile_dir: Path, config: dict) -> str:
     watch_dir = _prompt_watch_dir()
+    default_interval = config.get("poll_interval", 300)
+    try:
+        default_seconds = int(default_interval)
+    except (TypeError, ValueError):
+        default_seconds = 300
+    if default_seconds <= 0:
+        default_seconds = 300
+    poll_interval = _prompt_poll_interval(default_seconds)
     python_path = sys.executable
     installed = install_watcher(
         profile_name,
         profile_dir,
         watch_dir,
         python_path,
+        poll_interval=poll_interval,
     )
     if not installed:
         return "disabled"
 
     config["watch_dir"] = str(watch_dir)
+    config["poll_interval"] = poll_interval
     save_config(config, profile_dir)
     home_dir = Path.home()
     if watch_dir.is_relative_to(home_dir):

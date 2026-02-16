@@ -10,10 +10,8 @@
         <string>/bin/bash</string>
         <string>{{watcher_script_path}}</string>
     </array>
-    <key>WatchPaths</key>
-    <array>
-        <string>{{watch_dir}}</string>
-    </array>
+    <key>StartInterval</key>
+    <integer>{{poll_interval}}</integer>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
