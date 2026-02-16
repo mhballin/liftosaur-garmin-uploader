@@ -4,6 +4,14 @@ Bridge the gap between [Liftosaur](https://www.liftosaur.com/) and [Garmin Conne
 
 Uploaded workouts appear as native Garmin activities with full support for Training Effect, Training Status, badges, and workout history.
 
+I made this becuase i wanted to see my workouts in Garmin Connect without manually re-entering them or relying on third-party sync tools. The tool runs in the background, so once it's set up, you can just export your workout from Liftosaur and it will automatically show up in Garmin Connect within a few minutes.
+
+I have fully vibe coded this so it probably has a lot of bugs and edge cases I haven't thought of. If you run into any issues, please open an issue or PR!
+
+The program will initally upload every workout you have in liftosaur but it will keep track of what it has uploaded so you won't get duplicates if you run it again. You can also use the `--force` flag to re-upload if needed. If you dont want to upload everything right away, you can move the files out of the watched folder and into it one by one to trigger uploads at your own pace. 
+
+All the data (ie what has been uploaded, user preferences, etc) is stored locally in `~/.liftosaur_garmin/` and is organized by profile if you have multiple users. 
+
 ---
 
 ## How It Works
@@ -103,6 +111,16 @@ liftosaur-garmin --profiles
 This opens an interactive menu to add, rename, switch, or delete profiles and manage each profile's watcher.
 
 ---
+
+## Uninstall
+
+To uninstall, simply remove the project directory and optionally delete the `~/.liftosaur_garmin/` folder where all user data is stored:
+
+```bash
+rm -rf liftosaur-garmin-uploader
+rm -rf ~/.liftosaur_garmin/
+```
+-- 
 
 ## Manual Usage
 
