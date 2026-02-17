@@ -41,6 +41,19 @@ def build_fit_for_workout(
     if not sets:
         raise ValueError("Workout has no sets to encode.")
 
+    # Filter out rows with zero reps to avoid invalid active sets.
+    filtered_sets = [
+        row
+        for row in sets
+        if int(float(row.get("Completed Reps", 0) or 0)) > 0
+    ]
+    if len(filtered_sets) != len(sets):
+        skipped = len(sets) - len(filtered_sets)
+        logger.info(f"Skipped {skipped} row(s) with zero reps.")
+    sets = filtered_sets
+    if not sets:
+        raise ValueError("Workout has no sets with reps > 0 to encode.")
+
     # Diagnostic state for improved error messages. Updated inside the per-set loop.
     current_set_info: dict | None = None
 

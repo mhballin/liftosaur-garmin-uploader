@@ -174,10 +174,10 @@ def fetch_latest_weight_kg(profile_dir: Path) -> float | None:
         "startDate": start_date.isoformat(),
         "endDate": end_date.isoformat(),
     }
-    url = "https://connect.garmin.com/modern/proxy/weight-service/weight/range"
+    path = "/modern/proxy/weight-service/weight/range"
 
     try:
-        response = garth.client.get(url, params=params)
+        response = garth.client.request("GET", path, params=params)
         payload = response.json() if hasattr(response, "json") else response
     except Exception as exc:
         logger.debug(f"Garmin weight fetch failed: {exc}")

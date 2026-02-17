@@ -34,16 +34,33 @@ def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]
         raise ValueError(f"Expected a .csv file, got: {filepath.suffix}")
 
     rows: list[dict] = []
-    max_attempts = 5
-    delay_seconds = 0.5
+    max_attempts = 10  # More attempts for cloud-synced files (iCloud Drive)
+    delay_seconds = 1.0  # Longer initial delay for cloud synchronization
     for attempt in range(1, max_attempts + 1):
         try:
             with filepath.open("r", encoding="utf-8-sig", newline="") as handle:
                 reader = csv.DictReader(handle)
-                if reader.fieldnames is None:
+                # Try to access fieldnames, which may raise OSError during header read
+                try:
+                    fieldnames = reader.fieldnames
+                except OSError as exc2:
+                    # Some platforms (or Python versions) raise OSError without
+                    # setting errno; detect the resource-deadlock message text
+                    # and retry similarly to the outer OSError handler.
+                    is_deadlock_field = (
+                        getattr(exc2, "errno", None) == errno.EDEADLK
+                        or getattr(exc2, "errno", None) == errno.EAGAIN
+                        or "Resource deadlock avoided" in str(exc2)
+                    )
+                    if is_deadlock_field and attempt < max_attempts:
+                        time.sleep(delay_seconds * attempt)
+                        raise  # Re-raise original exception to outer handler
+                    raise
+
+                if fieldnames is None:
                     raise ValueError("CSV appears to be empty or has no header row.")
 
-                actual = set(reader.fieldnames)
+                actual = set(fieldnames)
                 missing = REQUIRED_CSV_COLUMNS - actual
                 if missing:
                     missing_list = ", ".join(sorted(missing))
@@ -67,7 +84,11 @@ def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]
                     rows.append(row)
             break
         except OSError as exc:
-            is_deadlock = getattr(exc, "errno", None) == errno.EDEADLK
+            is_deadlock = (
+                getattr(exc, "errno", None) == errno.EDEADLK
+                or getattr(exc, "errno", None) == errno.EAGAIN
+                or "Resource deadlock avoided" in str(exc)
+            )
             if is_deadlock and attempt < max_attempts:
                 time.sleep(delay_seconds * attempt)
                 continue
