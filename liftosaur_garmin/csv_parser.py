@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import csv
-import errno
 import logging
+import platform
+import subprocess
 import time
 from collections import OrderedDict
 from pathlib import Path
@@ -25,6 +26,125 @@ REQUIRED_CSV_COLUMNS = {
     "Day Name",
 }
 
+# iCloud stub files appear as ".filename.icloud" in the parent directory
+# when the real file data hasn't been downloaded locally yet.
+_ICLOUD_STUB_XATTR = b"com.apple.icloud.itemName"
+
+
+def _is_icloud_path(filepath: Path) -> bool:
+    """Return True if the file lives inside an iCloud Drive directory."""
+    try:
+        icloud_root = Path(
+            "~/Library/Mobile Documents/com~apple~CloudDocs"
+        ).expanduser()
+        return filepath.is_relative_to(icloud_root)
+    except (ValueError, Exception):
+        return False
+
+
+def _stub_exists(filepath: Path) -> bool:
+    """Return True if a .icloud stub file exists for this path (file not local yet)."""
+    stub = filepath.parent / f".{filepath.name}.icloud"
+    return stub.exists()
+
+
+def _file_is_local(filepath: Path) -> bool:
+    """Return True if the file is fully downloaded locally.
+
+    Checks for the presence of the .icloud stub (which replaces the real file
+    when iCloud has evicted it), and verifies the file has non-zero size.
+    """
+    # Stub present = real file is cloud-only, not downloaded
+    if _stub_exists(filepath):
+        return False
+
+    # File must exist and have content
+    try:
+        if filepath.stat().st_size == 0:
+            return False
+    except OSError:
+        return False
+
+    # Optionally check xattr if the xattr package is available
+    try:
+        import xattr  # type: ignore
+        attrs = xattr.listxattr(str(filepath))
+        for attr in attrs:
+            name = attr if isinstance(attr, str) else attr.decode("utf-8", errors="replace")
+            if "com.apple.icloud.itemName" in name:
+                return False
+    except ImportError:
+        pass  # xattr not installed — stub check above is sufficient
+    except Exception:
+        pass
+
+    return True
+
+
+def ensure_icloud_downloaded(filepath: Path, timeout: float = 60.0) -> None:
+    """Ensure an iCloud Drive file is fully downloaded before reading.
+
+    Calls ``brctl download`` to trigger iCloud to fetch the file, then polls
+    until the file is confirmed local or the timeout expires.
+
+    This prevents ``OSError: [Errno 11] Resource deadlock avoided`` which
+    occurs when macOS hands Python a cloud-stub file that hasn't been
+    materialised yet.
+
+    This function is a no-op on non-macOS platforms and for files that are
+    not inside iCloud Drive.
+    """
+    if platform.system() != "Darwin":
+        return
+    if not _is_icloud_path(filepath):
+        return
+    if _file_is_local(filepath):
+        logger.debug(f"iCloud file already local: {filepath.name}")
+        return
+
+    logger.info(
+        f"File is an iCloud stub — requesting download: {filepath.name}"
+    )
+
+    # Ask iCloud to download the file
+    try:
+        result = subprocess.run(
+            ["brctl", "download", str(filepath)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                f"brctl download returned {result.returncode}: "
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+        else:
+            logger.debug("brctl download command accepted")
+    except FileNotFoundError:
+        logger.warning(
+            "brctl not found — cannot force iCloud download. "
+            "The file may still download on its own."
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("brctl download timed out after 10s — continuing to poll")
+
+    # Poll until file is local or we give up
+    deadline = time.monotonic() + timeout
+    poll_interval = 2.0
+    while time.monotonic() < deadline:
+        if _file_is_local(filepath):
+            logger.info(f"iCloud file is now local: {filepath.name}")
+            return
+        remaining = int(deadline - time.monotonic())
+        logger.debug(f"Waiting for iCloud download... ({remaining}s remaining)")
+        time.sleep(poll_interval)
+
+    raise TimeoutError(
+        f"iCloud file was not downloaded within {timeout:.0f}s: {filepath}\n"
+        "Check your internet connection or open the file in Finder to trigger download."
+    )
+
 
 def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]:
     """Read and validate a Liftosaur CSV export."""
@@ -33,66 +153,40 @@ def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]
     if filepath.suffix.lower() != ".csv":
         raise ValueError(f"Expected a .csv file, got: {filepath.suffix}")
 
+    # Ensure the file is fully downloaded from iCloud before attempting to read.
+    # This prevents [Errno 11] Resource deadlock avoided on cloud-stub files.
+    ensure_icloud_downloaded(filepath)
+
     rows: list[dict] = []
-    max_attempts = 10  # More attempts for cloud-synced files (iCloud Drive)
-    delay_seconds = 1.0  # Longer initial delay for cloud synchronization
-    for attempt in range(1, max_attempts + 1):
-        try:
-            with filepath.open("r", encoding="utf-8-sig", newline="") as handle:
-                reader = csv.DictReader(handle)
-                # Try to access fieldnames, which may raise OSError during header read
-                try:
-                    fieldnames = reader.fieldnames
-                except OSError as exc2:
-                    # Some platforms (or Python versions) raise OSError without
-                    # setting errno; detect the resource-deadlock message text
-                    # and retry similarly to the outer OSError handler.
-                    is_deadlock_field = (
-                        getattr(exc2, "errno", None) == errno.EDEADLK
-                        or getattr(exc2, "errno", None) == errno.EAGAIN
-                        or "Resource deadlock avoided" in str(exc2)
-                    )
-                    if is_deadlock_field and attempt < max_attempts:
-                        time.sleep(delay_seconds * attempt)
-                        raise  # Re-raise original exception to outer handler
-                    raise
+    with filepath.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
 
-                if fieldnames is None:
-                    raise ValueError("CSV appears to be empty or has no header row.")
+        fieldnames = reader.fieldnames
+        if fieldnames is None:
+            raise ValueError("CSV appears to be empty or has no header row.")
 
-                actual = set(fieldnames)
-                missing = REQUIRED_CSV_COLUMNS - actual
-                if missing:
-                    missing_list = ", ".join(sorted(missing))
-                    found_list = ", ".join(sorted(actual))
-                    raise ValueError(
-                        f"CSV is missing required columns: {missing_list}. "
-                        f"Found columns: {found_list}"
-                    )
-
-                for row in reader:
-                    wdt = (row.get("Workout DateTime") or "").strip()
-                    if not wdt:
-                        continue
-                    try:
-                        parse_iso(wdt)
-                    except ValueError:
-                        logger.debug(f"Skipping row with invalid datetime: {wdt}")
-                        continue
-                    if workout_datetime and wdt != workout_datetime:
-                        continue
-                    rows.append(row)
-            break
-        except OSError as exc:
-            is_deadlock = (
-                getattr(exc, "errno", None) == errno.EDEADLK
-                or getattr(exc, "errno", None) == errno.EAGAIN
-                or "Resource deadlock avoided" in str(exc)
+        actual = set(fieldnames)
+        missing = REQUIRED_CSV_COLUMNS - actual
+        if missing:
+            missing_list = ", ".join(sorted(missing))
+            found_list = ", ".join(sorted(actual))
+            raise ValueError(
+                f"CSV is missing required columns: {missing_list}. "
+                f"Found columns: {found_list}"
             )
-            if is_deadlock and attempt < max_attempts:
-                time.sleep(delay_seconds * attempt)
+
+        for row in reader:
+            wdt = (row.get("Workout DateTime") or "").strip()
+            if not wdt:
                 continue
-            raise
+            try:
+                parse_iso(wdt)
+            except ValueError:
+                logger.debug(f"Skipping row with invalid datetime: {wdt}")
+                continue
+            if workout_datetime and wdt != workout_datetime:
+                continue
+            rows.append(row)
 
     if not rows:
         raise ValueError("No valid rows found in CSV.")
