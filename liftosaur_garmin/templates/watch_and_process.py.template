@@ -1,37 +1,89 @@
 #!/usr/bin/env python3
-"""Liftosaur → Garmin file watcher. Auto-generated — do not edit manually."""
+"""Liftosaur → Garmin file watcher. Auto-generated — do not edit manually.
+
+Monitors WATCH_DIR for new liftosaur_*.csv files and processes them via CLI.
+Uses structured logging with automatic rotation to prevent disk bloat.
+"""
 import glob
+import logging
 import os
 import subprocess
 import sys
 import time
-from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+# ────────────────────────────────────────────────────────────────────────────
+# Configuration
+# ────────────────────────────────────────────────────────────────────────────
 WATCH_DIR = "{{watch_dir}}"
 PYTHON = "{{python_path}}"
 PROFILE = "{{profile_name}}"
 LOG_FILE = "{{log_file}}"
 PROCESSED_FILE = "{{processed_file}}"
 
-def log(msg):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{timestamp}] {msg}\n"
-    Path(LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
-    with open(LOG_FILE, "a") as f:
-        f.write(line)
+# Rotation limits: prevent unbounded growth
+MAX_LOG_SIZE = 5 * 1024 * 1024  # 5MB per file
+LOG_BACKUP_COUNT = 3             # Keep 3 backups (15MB max)
 
-def get_processed():
+# ────────────────────────────────────────────────────────────────────────────
+# Setup Structured Logging
+# ────────────────────────────────────────────────────────────────────────────
+logger = logging.getLogger("liftosaur_garmin.watcher")
+logger.setLevel(logging.DEBUG)
+
+# Create log directory
+log_dir = Path(LOG_FILE).parent
+log_dir.mkdir(parents=True, exist_ok=True)
+
+# Rotating file handler (5MB per file, 3 backups)
+file_handler = RotatingFileHandler(
+    LOG_FILE,
+    maxBytes=MAX_LOG_SIZE,
+    backupCount=LOG_BACKUP_COUNT
+)
+file_handler.setLevel(logging.DEBUG)
+
+# ISO 8601 timestamps + structured format
+formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)-8s] %(name)s - %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S%z"
+)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+# ────────────────────────────────────────────────────────────────────────────
+# Processed File Tracking
+# ────────────────────────────────────────────────────────────────────────────
+def get_processed() -> set[str]:
+    """Load set of already-processed filenames."""
     p = Path(PROCESSED_FILE)
     if p.exists():
         return set(p.read_text().strip().splitlines())
     return set()
 
-def mark_processed(name):
+
+def mark_processed(name: str) -> None:
+    """Record filename as processed."""
+    Path(PROCESSED_FILE).parent.mkdir(parents=True, exist_ok=True)
     with open(PROCESSED_FILE, "a") as f:
         f.write(name + "\n")
 
-def wait_for_file_ready(filepath, timeout=30, interval=1):
+
+# ────────────────────────────────────────────────────────────────────────────
+# File Ready Detection
+# ────────────────────────────────────────────────────────────────────────────
+def wait_for_file_ready(filepath: str, timeout: int = 30, interval: int = 1) -> bool:
+    """Wait for file to stabilize (size unchanged) or timeout.
+    
+    Args:
+        filepath: Path to file to wait for
+        timeout: Max seconds to wait
+        interval: Check interval in seconds
+    
+    Returns:
+        True if file is ready, False if timeout
+    """
     start = time.time()
     prev_size = -1
     while time.time() - start < timeout:
@@ -45,44 +97,70 @@ def wait_for_file_ready(filepath, timeout=30, interval=1):
         time.sleep(interval)
     return False
 
-log("--- Watcher triggered ---")
-log(f"Watch dir: {WATCH_DIR}")
-log(f"Watch dir exists: {os.path.isdir(WATCH_DIR)}")
+
+# ────────────────────────────────────────────────────────────────────────────
+# Main Watcher Loop
+# ────────────────────────────────────────────────────────────────────────────
+logger.info("=" * 60)
+logger.info("Watcher scan started")
+logger.debug(f"watch_dir={WATCH_DIR}, profile={PROFILE}")
+
+# Validate watch directory exists
+if not os.path.isdir(WATCH_DIR):
+    logger.error(f"Watch directory does not exist: {WATCH_DIR}")
+    sys.exit(1)
 
 try:
     contents = os.listdir(WATCH_DIR)
-    log(f"Watch dir contents: {contents}")
+    logger.debug(f"watch_dir contents: {len(contents)} items")
 except Exception as e:
-    log(f"Watch dir contents: ERROR - {e}")
-    contents = []
+    logger.error(f"Failed to list watch_dir: {e}")
+    sys.exit(1)
 
 processed = get_processed()
 found_new = False
+errors = 0
 
 for csv_file in sorted(glob.glob(os.path.join(WATCH_DIR, "liftosaur_*.csv"))):
     basename = os.path.basename(csv_file)
     if basename in processed:
+        logger.debug(f"Skipping already-processed: {basename}")
         continue
+    
     found_new = True
-    log(f"New file: {basename}")
+    logger.info(f"Detected new file: {basename}")
+    
+    # Wait for file to stabilize (not being written to)
     if not wait_for_file_ready(csv_file):
-        log(f"Skipping {basename}: file not ready")
+        logger.warning(f"File not stable after 30s; skipping: {basename}")
         continue
-    cmd = [PYTHON, "-m", "liftosaur_garmin", csv_file, "--all", "--profile", PROFILE, "--verbose"]
-    log(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    with open(LOG_FILE, "a") as f:
-        if result.stdout:
-            f.write(result.stdout)
-        if result.stderr:
-            f.write(result.stderr)
-    if result.returncode == 0:
-        mark_processed(basename)
-        log(f"SUCCESS: {basename}")
-    else:
-        log(f"FAILED (exit {result.returncode}): {basename}")
+    
+    # Process via CLI
+    cmd = [PYTHON, "-m", "liftosaur_garmin", csv_file, "--all", "--profile", PROFILE]
+    logger.info(f"Processing: {basename}")
+    logger.debug(f"Command: {' '.join(cmd)}")
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        
+        if result.returncode == 0:
+            logger.info(f"✓ Processed successfully: {basename}")
+            mark_processed(basename)
+        else:
+            logger.error(f"✗ Processing failed (exit {result.returncode}): {basename}")
+            if result.stderr:
+                logger.error(f"  stderr: {result.stderr[:200]}")
+            errors += 1
+    except subprocess.TimeoutExpired:
+        logger.error(f"✗ Processing timeout (5min): {basename}")
+        errors += 1
+    except Exception as e:
+        logger.error(f"✗ Processing error: {e}", exc_info=True)
+        errors += 1
 
 if not found_new:
-    log("No new CSV files found")
+    logger.debug("No new CSV files detected")
 
-log("--- Scan complete ---")
+logger.info(f"Scan complete (errors: {errors})")
+logger.info("=" * 60)
+
