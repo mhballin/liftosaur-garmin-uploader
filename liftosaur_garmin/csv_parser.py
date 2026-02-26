@@ -33,6 +33,47 @@ REQUIRED_CSV_COLUMNS = {
 _ICLOUD_STUB_XATTR = b"com.apple.icloud.itemName"
 
 
+def _coordinated_copy(src: Path, dst: Path) -> bool:
+    """Copy a file using macOS file coordination if available.
+
+    Returns True if the coordinated copy succeeded, False if not supported or failed.
+    """
+    if platform.system() != "Darwin":
+        return False
+    try:
+        import Foundation  # type: ignore
+    except Exception:
+        return False
+
+    try:
+        url = Foundation.NSURL.fileURLWithPath_(str(src))
+        coordinator = Foundation.NSFileCoordinator.alloc().initWithFilePresenter_(None)
+    except Exception:
+        return False
+
+    def accessor(read_url) -> None:
+        shutil.copy2(str(read_url.path()), dst)
+
+    try:
+        result = coordinator.coordinateReadingItemAtURL_options_error_byAccessor_(
+            url,
+            0,
+            None,
+            accessor,
+        )
+    except Exception as exc:
+        logger.debug(f"NSFileCoordinator copy failed: {exc}")
+        return False
+
+    if isinstance(result, tuple):
+        _, error = result
+        if error is not None:
+            logger.debug(f"NSFileCoordinator copy error: {error}")
+            return False
+
+    return dst.exists()
+
+
 def _is_icloud_path(filepath: Path) -> bool:
     """Return True if the file lives inside an iCloud Drive directory."""
     try:
@@ -160,23 +201,50 @@ def parse_csv(filepath: Path, workout_datetime: str | None = None, profile_dir: 
     if filepath.suffix.lower() != ".csv":
         raise ValueError(f"Expected a .csv file, got: {filepath.suffix}")
 
-    # For iCloud files with profile context, copy to temp to avoid deadlock
-    parse_filepath = filepath
-    if profile_dir and _is_icloud_path(filepath):
-        try:
-            temp_dir = get_temp_dir(profile_dir)
-            # Use a timestamped temp filename to avoid conflicts
-            temp_path = temp_dir / f"{filepath.stem}_temp.csv"
-            shutil.copy2(filepath, temp_path)
-            logger.debug(f"Copied iCloud file to temp: {temp_path.name}")
-            parse_filepath = temp_path
-        except Exception as exc:
-            logger.warning(f"Failed to copy iCloud file to temp; will try original: {exc}")
-            parse_filepath = filepath
-
     # Ensure the file is fully downloaded from iCloud before attempting to read.
     # This prevents [Errno 11] Resource deadlock avoided on cloud-stub files.
-    ensure_icloud_downloaded(parse_filepath)
+    # Must do this FIRST, before attempting to copy, so brctl can release locks.
+    ensure_icloud_downloaded(filepath)
+
+    # For iCloud files with profile context, copy to temp to avoid deadlock.
+    # Note: We do this AFTER ensure_icloud_downloaded() so locks have time to release.
+    parse_filepath = filepath
+    if profile_dir and _is_icloud_path(filepath):
+        temp_dir = get_temp_dir(profile_dir)
+        temp_path = temp_dir / f"{filepath.stem}_temp.csv"
+        attempt = 0
+        delay = 1.0
+        while True:
+            try:
+                # Add a small grace period to let iCloud coordination locks fully release
+                time.sleep(delay if attempt > 0 else 1.0)
+                if _coordinated_copy(filepath, temp_path):
+                    logger.debug(
+                        f"Copied iCloud file to temp via NSFileCoordinator: {temp_path.name}"
+                    )
+                else:
+                    shutil.copy2(filepath, temp_path)
+                    logger.debug(f"Copied iCloud file to temp: {temp_path.name}")
+                parse_filepath = temp_path
+                break
+            except OSError as exc:
+                if getattr(exc, "errno", None) == 11:
+                    attempt += 1
+                    if attempt >= 5:
+                        raise ValueError(
+                            "iCloud file is still locked after multiple attempts; "
+                            "please try again in a moment."
+                        ) from exc
+                    logger.debug(
+                        f"iCloud file locked; retrying temp copy in {delay:.0f}s (attempt {attempt}/5)"
+                    )
+                    delay = min(delay * 2, 8.0)
+                    continue
+                logger.warning(
+                    f"Failed to copy iCloud file to temp; will try original: {exc}"
+                )
+                parse_filepath = filepath
+                break
 
     rows: list[dict] = []
     with parse_filepath.open("r", encoding="utf-8-sig", newline="") as handle:

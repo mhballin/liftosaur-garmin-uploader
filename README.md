@@ -45,6 +45,8 @@ The tool has been developed and tested on macOS using iCloud Drive to transfer C
 
 **Requirements:** Python 3.10+ and a Garmin Connect account.
 
+On macOS, the installer pulls in PyObjC to enable coordinated iCloud Drive access.
+
 1. Download the [latest release](https://github.com/mhballin/liftosaur-garmin-uploader/releases/latest) and unzip it
 2. Open a terminal in the unzipped folder
 3. Run:

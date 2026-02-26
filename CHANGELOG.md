@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2026-02-26
+
+### Added
+- macOS coordinated iCloud copy using NSFileCoordinator via PyObjC
+
+### Changed
+- iCloud temp copy now uses coordinated reads before falling back to direct copy
+- macOS installs PyObjC automatically (conditional dependency)
+
+### Fixed
+- Copy deadlock when iCloud coordination locks are still active
+
 ## [1.3.0] - 2026-02-26
 
 ### Added
