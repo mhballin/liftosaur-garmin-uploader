@@ -1,4 +1,4 @@
- # Logging Architecture
+# Logging Architecture
 
 ## Overview
 

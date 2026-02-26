@@ -412,11 +412,12 @@ def run_validate_command(argv: list[str]) -> int:
 
     status, result = validate_fit_file(fit_path, keep_csv=args.keep_csv)
     if status is None:
-        logger.error("✗ FitCSVTool.jar not found.")
+        logger.error("✗ FitCSVTool.jar not found in tools/.")
         logger.error(
-            "Please download the Garmin FIT SDK and copy tools/FitCSVTool.jar into this project."
+            "Re-download the release package, or if you cloned the repo without tools/, "
+            "download the Garmin FIT SDK and copy FitCSVTool.jar into tools/."
         )
-        return 2
+        return 1
 
     if status:
         logger.info("✓ FIT file is valid")

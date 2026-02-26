@@ -8,10 +8,12 @@ setup(
     python_requires=">=3.10",
     install_requires=[
         "garth",
-        "pytest",
         "fitparse",
         "pyobjc; platform_system == 'Darwin'",
     ],
+    extras_require={
+        "dev": ["pytest"],
+    },
     entry_points={
         "console_scripts": [
             "liftosaur-garmin=liftosaur_garmin.cli:main",

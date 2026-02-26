@@ -1,4 +1,3 @@
 garth
-pytest
 fitparse
 pyobjc; platform_system == "Darwin"

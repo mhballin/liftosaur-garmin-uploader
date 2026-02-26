@@ -10,17 +10,9 @@ Always set an explicit output path under `tests/output` and use versioned names 
 python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload --output tests/output/test_v1.fit
 ```
 
-## Auto-Increment the Test Version
-
-To create the next available `test_vN.fit`, run this two-step snippet in the terminal. It scans the existing files and increments the highest version by 1.
-
-```bash
-python -m liftosaur_garmin tests/fixtures/csv/sample.csv --no-upload --output tests/output/test_v3.fit
-```
-
 ## Validate the FIT File
 
-Use the FIT SDK validator through the CLI wrapper. Validation will be skipped if `tools/FitCSVTool.jar` is missing.
+Use the FIT SDK validator through the CLI wrapper. `tools/FitCSVTool.jar` is bundled in the repo; if it's missing (e.g., a minimal clone), validation will be skipped.
 
 ```bash
 python -m liftosaur_garmin validate tests/output/test_v1.fit
@@ -35,6 +27,10 @@ python -m liftosaur_garmin validate tests/output/test_v1.fit
 ```bash
 python scripts/compare_fits.py tests/output/test_v2.fit tests/fixtures/fit/21783591203_ACTIVITY.fit
 ```
+
+## Future Improvement (Manual Note)
+
+Add a small helper script to auto-increment `tests/output/test_vN.fit` by scanning existing files and choosing the next version number.
 
 
 

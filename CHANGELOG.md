@@ -33,9 +33,9 @@ All notable changes to this project will be documented in this file.
 
 ## [1.2.0] - 2026-02-23
 
-### Added
-- Change summary
+### Notes
+- Internal changes not documented.
 
 ## [1.1.1] - Earlier
 
-- Previous releases
+- Internal pre-1.2.0 releases.
