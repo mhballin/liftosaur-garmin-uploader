@@ -676,7 +676,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         # Load all rows from the CSV; filtering is handled downstream
-        rows = parse_csv(Path(args.csv))
+        rows = parse_csv(Path(args.csv), profile_dir=profile_dir)
     except (FileNotFoundError, ValueError) as exc:
         logger.error(f"❌ {exc}")
         return 1

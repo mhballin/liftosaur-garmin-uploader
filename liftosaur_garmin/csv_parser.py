@@ -5,12 +5,14 @@ from __future__ import annotations
 import csv
 import logging
 import platform
+import shutil
 import subprocess
 import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Iterable
 
+from .config import cleanup_old_temp_files, get_temp_dir, load_config
 from .fit.utils import parse_iso
 
 logger = logging.getLogger(__name__)
@@ -146,19 +148,38 @@ def ensure_icloud_downloaded(filepath: Path, timeout: float = 60.0) -> None:
     )
 
 
-def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]:
-    """Read and validate a Liftosaur CSV export."""
+def parse_csv(filepath: Path, workout_datetime: str | None = None, profile_dir: Path | None = None) -> list[dict]:
+    """Read and validate a Liftosaur CSV export.
+
+    If profile_dir is provided and the file is in iCloud Drive, the file will be
+    copied to a temp directory to avoid coordination lock issues. The temp copy
+    will be parsed instead of the original.
+    """
     if not filepath.exists():
         raise FileNotFoundError(f"CSV file not found: {filepath}")
     if filepath.suffix.lower() != ".csv":
         raise ValueError(f"Expected a .csv file, got: {filepath.suffix}")
 
+    # For iCloud files with profile context, copy to temp to avoid deadlock
+    parse_filepath = filepath
+    if profile_dir and _is_icloud_path(filepath):
+        try:
+            temp_dir = get_temp_dir(profile_dir)
+            # Use a timestamped temp filename to avoid conflicts
+            temp_path = temp_dir / f"{filepath.stem}_temp.csv"
+            shutil.copy2(filepath, temp_path)
+            logger.debug(f"Copied iCloud file to temp: {temp_path.name}")
+            parse_filepath = temp_path
+        except Exception as exc:
+            logger.warning(f"Failed to copy iCloud file to temp; will try original: {exc}")
+            parse_filepath = filepath
+
     # Ensure the file is fully downloaded from iCloud before attempting to read.
     # This prevents [Errno 11] Resource deadlock avoided on cloud-stub files.
-    ensure_icloud_downloaded(filepath)
+    ensure_icloud_downloaded(parse_filepath)
 
     rows: list[dict] = []
-    with filepath.open("r", encoding="utf-8-sig", newline="") as handle:
+    with parse_filepath.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
 
         fieldnames = reader.fieldnames
@@ -191,7 +212,18 @@ def parse_csv(filepath: Path, workout_datetime: str | None = None) -> list[dict]
     if not rows:
         raise ValueError("No valid rows found in CSV.")
 
-    logger.debug(f"Parsed {len(rows)} rows from {filepath}")
+    logger.debug(f"Parsed {len(rows)} rows from {parse_filepath}")
+
+    # Clean up old temp files opportunistically
+    if profile_dir:
+        try:
+            config = load_config(profile_dir)
+            retention_hours = config.get("temp_dir_retention_hours", 24)
+            temp_dir = get_temp_dir(profile_dir)
+            cleanup_old_temp_files(temp_dir, retention_hours)
+        except Exception as exc:
+            logger.debug(f"Temp cleanup failed: {exc}")
+
     return rows
 
 
