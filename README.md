@@ -1,6 +1,6 @@
 # 🏋️ Liftosaur → Garmin Uploader
 
-Bridge the gap between [Liftosaur](https://www.liftosaur.com/) and [Garmin Connect](https://connect.garmin.com/). This tool automatically converts your Liftosaur strength training CSV exports into Garmin-compatible FIT files and uploads them to Garmin Connect — no manual entry, no third-party sync services.
+Bridge the gap between [Liftosaur](https://www.liftosaur.com/) and [Garmin Connect](https://connect.garmin.com/). This tool automatically converts your Liftosaur strength training CSV exports or Liftosaur API history into Garmin-compatible FIT files and uploads them to Garmin Connect — no manual entry, no third-party sync services.
 
 Uploaded workouts appear as native Garmin activities with full support for Training Effect, Training Status, badges, and workout history.
 
@@ -12,16 +12,16 @@ I made this because I wanted to see my workouts in Garmin Connect without manual
 
 ```
 📱 Liftosaur (iPhone)
- ↓  Export CSV
- ↓  Automatically moved to iCloud Drive (via iOS Shortcut + automation)
-☁️  iCloud Drive / watched folder
- ↓  Auto-detected by background file watcher
+ ↓  Export CSV or sync via API
+ ↓  Automatically moved to iCloud Drive (via iOS Shortcut + automation) or fetched from Liftosaur REST API
+☁️  iCloud Drive / watched folder or Liftosaur API
+ ↓  Auto-detected by background watcher / API polling
 💻 liftosaur-garmin (this tool)
  ↓  Converts to FIT + uploads automatically
 ⌚ Garmin Connect
 ```
 
-Once installed, the tool runs in the background. Export a CSV from Liftosaur, and within minutes it's parsed, converted to a FIT file, validated, and uploaded to Garmin Connect. No commands to run, nothing to remember — it just works.
+Once installed, the tool runs in the background. Export a CSV from Liftosaur or enable API polling, and within minutes the workout is parsed, converted to a FIT file, validated, and uploaded to Garmin Connect. No commands to run, nothing to remember — it just works.
 
 On first run, the tool will upload every workout in your Liftosaur export. After that, it tracks what's been uploaded so you won't get duplicates. If you don't want to upload everything at once, move files into the watched folder one at a time to upload at your own pace.
 
@@ -49,19 +49,25 @@ On macOS, the installer pulls in PyObjC to enable coordinated iCloud Drive acces
 
 1. Download the [latest release](https://github.com/mhballin/liftosaur-garmin-uploader/releases/latest) and unzip it
 2. Open a terminal in the unzipped folder
-3. Run:
+3. Run the installer:
 
 ```bash
 source install.sh
 ```
 
-The installer creates a virtual environment, installs all dependencies, and launches the setup wizard. The wizard walks you through connecting your Garmin account, configuring preferences, and setting up the automatic file watcher. When the installer finishes, the tool is fully configured and running.
+This is the recommended path. It creates a virtual environment, installs dependencies, launches setup, and leaves your shell in the virtual environment.
 
-If you'd rather activate the environment yourself afterward:
+If you prefer not to source the script:
 
 ```bash
 bash install.sh
 source .venv/bin/activate
+```
+
+After either path, the CLI is ready:
+
+```bash
+liftosaur-garmin --help
 ```
 
 <details>
@@ -122,6 +128,10 @@ This opens an interactive menu to add, rename, switch, or delete profiles and ma
 
 ## Features
 
+### Liftosaur API Import
+
+If you have Liftosaur Premium, you can connect a Liftosaur API key during setup and import workout history directly without waiting for CSV exports. Manual sync and background polling both reuse the same FIT/upload pipeline as CSV imports, and duplicate workouts are skipped automatically.
+
 ### Calorie Estimation
 
 Optionally estimate calories burned using research-backed formulas. The tool can pull your latest body weight from Garmin Connect or use a fallback you provide during setup.
@@ -168,8 +178,14 @@ While the tool is designed to run automatically, you can also use it directly fr
 # Upload the newest unprocessed workout from a CSV
 liftosaur-garmin workout.csv
 
+# Upload the newest unprocessed workout from the Liftosaur API
+liftosaur-garmin --api
+
 # Upload all new workouts from a CSV
 liftosaur-garmin workout.csv --all
+
+# Upload all new workouts from the Liftosaur API
+liftosaur-garmin --api --all
 
 # Upload a specific date
 liftosaur-garmin workout.csv --date 2026-02-15
@@ -182,6 +198,9 @@ liftosaur-garmin workout.csv --no-upload --output my_workout.fit
 
 # See what's in a CSV and what's already uploaded
 liftosaur-garmin workout.csv --list
+
+# See what the Liftosaur API would import
+liftosaur-garmin --api --list
 
 # View upload history (no CSV needed)
 liftosaur-garmin --list
@@ -201,6 +220,12 @@ liftosaur-garmin --list
 | `--output PATH` | Save the FIT file to a specific path |
 | `--force` | Ignore upload history (allows re-uploads) |
 | `--list` | List workouts in CSV or upload history |
+| `--non-interactive` | Disable prompts and fail fast for automation/background runs |
+| `--api` | Use Liftosaur API history as the workout source |
+| `--api-key KEY` | Override the configured Liftosaur API key for one command |
+| `--api-start-date DATE` | Filter Liftosaur API history by start date |
+| `--api-end-date DATE` | Filter Liftosaur API history by end date |
+| `--api-limit N` | Limit how many Liftosaur history records to fetch |
 | `--skip-validation` | Skip FIT SDK validation before upload |
 | `--timezone ZONE` | Override timezone (e.g. `America/New_York`) |
 | `--verbose` | Show detailed debug output |
@@ -239,7 +264,7 @@ liftosaur-garmin-uploader/
 Validate the FIT file: `liftosaur-garmin validate path/to/file.fit`. Compare against a known-good file with `python scripts/compare_fits.py generated.fit reference.fit`.
 
 **Authentication expired**
-The tool attempts to re-authenticate automatically. If that fails, re-run the setup wizard: `liftosaur-garmin --setup`.
+Interactive runs can attempt re-authentication automatically. Background watcher and API polling runs are non-interactive and cannot prompt for credentials. Re-run setup for the affected profile: `liftosaur-garmin --setup --profile <name>`.
 
 **Watcher not detecting files**
 Check the log: `liftosaur-garmin --profiles` → Manage file watcher → View watcher log. Common causes: wrong watch folder, or missing Full Disk Access on macOS when using iCloud Drive.

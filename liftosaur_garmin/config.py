@@ -14,6 +14,10 @@ DEFAULT_CONFIG: dict = {
     "fallback_weight_kg": None,
     "poll_interval": 300,
     "temp_dir_retention_hours": 24,
+    "liftosaur_api_enabled": False,
+    "liftosaur_api_key": None,
+    "liftosaur_api_poll_enabled": False,
+    "liftosaur_api_last_synced_datetime": None,
 }
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import getpass
 import logging
+import sys
 import tempfile
 import time
 from datetime import date, timedelta
@@ -38,8 +39,18 @@ def _is_rate_limited(message: str) -> bool:
     return _matches_any(message, RATE_LIMIT_HINTS)
 
 
-def garmin_setup(profile_dir: Path) -> None:
+def _require_interactive(non_interactive: bool, context: str) -> None:
+    if non_interactive:
+        reason = "stdin is not interactive" if not sys.stdin.isatty() else "--non-interactive was set"
+        raise RuntimeError(
+            f"{context}: Garmin authentication cannot prompt in background mode "
+            f"({reason}). Run `python -m liftosaur_garmin --setup --profile <name>` first."
+        )
+
+
+def garmin_setup(profile_dir: Path, *, non_interactive: bool = False) -> None:
     """Authenticate with Garmin Connect and store tokens locally."""
+    _require_interactive(non_interactive, "Authentication required")
     garth_dir = profile_dir / "garth"
     try:
         import garth
@@ -60,7 +71,12 @@ def garmin_setup(profile_dir: Path) -> None:
         raise RuntimeError(f"Authentication failed: {exc}") from exc
 
 
-def upload_to_garmin(fit_bytes: bytes, profile_dir: Path) -> None:
+def upload_to_garmin(
+    fit_bytes: bytes,
+    profile_dir: Path,
+    *,
+    non_interactive: bool = False,
+) -> None:
     """Upload a FIT payload to Garmin Connect."""
     try:
         import garth
@@ -76,7 +92,7 @@ def upload_to_garmin(fit_bytes: bytes, profile_dir: Path) -> None:
             message = str(exc)
             if _is_auth_error(message):
                 logger.warning("Garmin token expired; re-authenticating...")
-                garmin_setup(profile_dir)
+                garmin_setup(profile_dir, non_interactive=non_interactive)
                 garth.resume(str(garth_dir))
             else:
                 raise RuntimeError(f"Authentication failed: {exc}") from exc
@@ -88,6 +104,7 @@ def upload_to_garmin(fit_bytes: bytes, profile_dir: Path) -> None:
         tmp_path.write_bytes(fit_bytes)
         reauthed = False
         max_attempts = 3
+        rate_limit_delays = (5, 15)
         for attempt in range(1, max_attempts + 1):
             try:
                 logger.debug(f"Uploading FIT ({len(fit_bytes)} bytes) to Garmin Connect...")
@@ -102,12 +119,12 @@ def upload_to_garmin(fit_bytes: bytes, profile_dir: Path) -> None:
                     return
                 if _is_auth_error(message) and not reauthed:
                     logger.warning("Upload auth expired; re-authenticating...")
-                    garmin_setup(profile_dir)
+                    garmin_setup(profile_dir, non_interactive=non_interactive)
                     garth.resume(str(garth_dir))
                     reauthed = True
                     continue
                 if _is_rate_limited(message) and attempt < max_attempts:
-                    delay = 2 ** (attempt - 1)
+                    delay = rate_limit_delays[min(attempt - 1, len(rate_limit_delays) - 1)]
                     logger.debug(f"Garmin rate-limited, retrying in {delay}s...")
                     time.sleep(delay)
                     continue

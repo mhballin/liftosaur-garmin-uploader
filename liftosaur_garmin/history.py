@@ -35,13 +35,18 @@ def save_history(history: dict, profile_dir: Path) -> None:
 def mark_uploaded(workout_datetime: str, sets: list[dict], profile_dir: Path) -> None:
     """Record a workout upload in history."""
     history = load_history(profile_dir)
+    source = (sets[0].get("__source") or "csv").strip() if sets else "csv"
+    source_id = (sets[0].get("__source_id") or "").strip() if sets else ""
     history[workout_datetime] = {
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "total_rows": len(sets),
+        "working_sets": len(sets),
         "day": sets[0].get("Day Name", ""),
         "exercises": list(
             OrderedDict.fromkeys(row.get("Exercise", "") for row in sets)
         ),
+        "source": source,
+        "source_id": source_id,
     }
     save_history(history, profile_dir)
     logger.info("Marked workout %s as uploaded", workout_datetime)

@@ -17,6 +17,7 @@ from .csv_parser import group_workouts, parse_csv
 from .exercise.duration import lbs_to_kg
 from .fit.utils import parse_iso, resolve_timezone
 from .history import get_new_workouts, load_history, mark_uploaded
+from .liftosaur_api import LiftosaurApiError, fetch_history_rows, get_configured_api_key
 from .logging_config import setup_logging
 from .profile import (
     get_default_profile,
@@ -72,6 +73,20 @@ def _prompt_weight_kg() -> float:
         if unit in {"lb", "lbs"}:
             return lbs_to_kg(value)
         return value
+
+
+def _prompt_liftosaur_api_key(existing_key: str | None = None) -> str:
+    while True:
+        if existing_key:
+            raw = input("Liftosaur API key (leave blank to keep existing): ").strip()
+            if not raw:
+                return existing_key
+        else:
+            raw = input("Liftosaur API key: ").strip()
+
+        if raw.startswith("lftsk_"):
+            return raw
+        print("API keys should start with 'lftsk_'.")
 
 
 def _prompt_choice(prompt: str, max_val: int) -> int:
@@ -264,6 +279,7 @@ def _print_setup_summary(
     profile_name: str,
     email: str,
     calories_summary: str,
+    liftosaur_summary: str,
     watcher_summary: str,
     default_summary: str,
 ) -> None:
@@ -271,6 +287,7 @@ def _print_setup_summary(
         f" Profile:   {profile_name}",
         f" Email:     {email}",
         f" Calories:  {calories_summary}",
+        f" Liftosaur: {liftosaur_summary}",
         f" Watcher:   {watcher_summary}",
         f" Default:   {default_summary}",
     ]
@@ -322,6 +339,23 @@ def _run_setup_wizard() -> int:
         config["fallback_weight_kg"] = round(weight_kg, 2)
     else:
         config["fallback_weight_kg"] = None
+
+    existing_api_key = get_configured_api_key(config)
+    enable_liftosaur_api = _prompt_yes_no(
+        "Enable Liftosaur API imports?",
+        default=bool(existing_api_key or config.get("liftosaur_api_enabled")),
+    )
+    if enable_liftosaur_api:
+        config["liftosaur_api_enabled"] = True
+        config["liftosaur_api_key"] = _prompt_liftosaur_api_key(existing_api_key)
+        config["liftosaur_api_poll_enabled"] = _prompt_yes_no(
+            "Enable automatic Liftosaur API polling in the background watcher?",
+            default=bool(config.get("liftosaur_api_poll_enabled", True)),
+        )
+    else:
+        config["liftosaur_api_enabled"] = False
+        config["liftosaur_api_key"] = None
+        config["liftosaur_api_poll_enabled"] = False
     save_config(config, profile_dir)
 
     watcher_summary = "disabled"
@@ -340,11 +374,20 @@ def _run_setup_wizard() -> int:
     else:
         calories_summary = "disabled"
 
+    if config.get("liftosaur_api_enabled"):
+        if config.get("liftosaur_api_poll_enabled"):
+            liftosaur_summary = "enabled (background polling)"
+        else:
+            liftosaur_summary = "enabled (manual sync only)"
+    else:
+        liftosaur_summary = "disabled"
+
     default_summary = "yes" if set_default else "no"
     _print_setup_summary(
         profile_name,
         email,
         calories_summary,
+        liftosaur_summary,
         watcher_summary,
         default_summary,
     )
@@ -354,13 +397,18 @@ def _run_setup_wizard() -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="liftosaur-garmin",
-        description="Convert Liftosaur CSV workouts to Garmin FIT",
+        description="Convert Liftosaur workouts to Garmin FIT",
     )
     parser.add_argument("csv", nargs="?", help="Path to Liftosaur CSV export")
     parser.add_argument("--setup", action="store_true", help="Authenticate Garmin Connect")
-    parser.add_argument("--list", action="store_true", help="List workouts (with CSV) or upload history (without CSV)")
+    parser.add_argument("--list", action="store_true", help="List workouts from the selected source, or upload history when no source is provided")
     parser.add_argument("--dry-run", action="store_true", help="Preview uploads only")
     parser.add_argument("--no-upload", action="store_true", help="Skip Garmin upload")
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Disable prompts and fail fast in background automation",
+    )
     parser.add_argument("--force", action="store_true", help="Ignore upload history")
     parser.add_argument("--date", help="Workout date filter (YYYY-MM-DD)")
     parser.add_argument("--all", action="store_true", help="Upload all new workouts")
@@ -384,6 +432,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose", "-v",
         action="store_true",
         help="Enable debug output to console",
+    )
+    parser.add_argument(
+        "--api",
+        action="store_true",
+        help="Import workouts from Liftosaur API history instead of a CSV file",
+    )
+    parser.add_argument(
+        "--api-key",
+        help="Override the configured Liftosaur API key for this command",
+    )
+    parser.add_argument(
+        "--api-start-date",
+        help="Liftosaur API history start date filter (ISO date or timestamp)",
+    )
+    parser.add_argument(
+        "--api-end-date",
+        help="Liftosaur API history end date filter (ISO date or timestamp)",
+    )
+    parser.add_argument(
+        "--api-limit",
+        type=int,
+        help="Maximum number of Liftosaur history records to fetch",
     )
     return parser
 
@@ -628,33 +698,6 @@ def main(argv: list[str] | None = None) -> int:
             if choice == 6:
                 return 0
 
-    if args.list and not args.csv:
-        profile_name: str | None = None
-        profile_dir: Path | None = None
-        try:
-            profile_name = resolve_profile(args.profile)
-            profile_dir = get_profile_dir(profile_name)
-        except RuntimeError as exc:
-            logger.error(f"❌ {exc}")
-            return 1
-        if profile_dir is None:
-            logger.error("❌ Profile resolution failed.")
-            return 1
-        history = load_history(profile_dir)
-        if not history:
-            logger.info("No workouts uploaded yet.")
-            return 0
-        logger.info(f"📋 Upload history ({len(history)} workouts):\n")
-        for workout_datetime, info in sorted(history.items(), reverse=True):
-            dt = parse_iso(workout_datetime)
-            logger.info(f"  ✅ {dt.strftime('%Y-%m-%d %H:%M')} – {info.get('day', '')}")
-            logger.info(
-                f"     {info.get('working_sets', '?')} sets | "
-                f"Uploaded: {info.get('uploaded_at', '?')[:19]}"
-            )
-            logger.info(f"     {', '.join(info.get('exercises', []))}\n")
-        return 0
-
     if args.setup:
         return _run_setup_wizard()
 
@@ -671,18 +714,78 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("❌ Profile resolution failed.")
         return 1
 
-    if not args.csv:
+    config = load_config(profile_dir)
+
+    if args.csv and args.api:
+        logger.error("❌ Choose either a CSV input or --api, not both.")
+        return 1
+
+    if args.list and not args.csv and not args.api:
+        history = load_history(profile_dir)
+        if not history:
+            logger.info("No workouts uploaded yet.")
+            return 0
+        logger.info(f"📋 Upload history ({len(history)} workouts):\n")
+        for workout_datetime, info in sorted(history.items(), reverse=True):
+            dt = parse_iso(workout_datetime)
+            logger.info(f"  ✅ {dt.strftime('%Y-%m-%d %H:%M')} – {info.get('day', '')}")
+            logger.info(
+                f"     {info.get('working_sets') or info.get('total_rows', '?')} sets | "
+                f"Uploaded: {info.get('uploaded_at', '?')[:19]}"
+            )
+            source = info.get("source")
+            if source:
+                logger.info(f"     Source: {source}")
+            logger.info(f"     {', '.join(info.get('exercises', []))}\n")
+        return 0
+
+    if not args.csv and not args.api:
         parser.print_help()
         return 1
 
-    try:
-        # Load all rows from the CSV; filtering is handled downstream
-        rows = parse_csv(Path(args.csv), profile_dir=profile_dir)
-    except (FileNotFoundError, ValueError) as exc:
-        logger.error(f"❌ {exc}")
-        return 1
+    rows: list[dict]
+    source_label: str
+    api_sync_start: str | None = None
+    if args.api:
+        if args.api_limit is not None and args.api_limit <= 0:
+            logger.error("❌ --api-limit must be a positive integer.")
+            return 1
+        api_key = get_configured_api_key(config, args.api_key)
+        if not api_key:
+            logger.error(
+                "❌ Liftosaur API key not configured for this profile. Run --setup or pass --api-key."
+            )
+            return 1
 
-    logger.info(f"📂 Reading {args.csv}...")
+        api_sync_start = args.api_start_date
+        if args.all and not api_sync_start and config.get("liftosaur_api_last_synced_datetime"):
+            api_sync_start = str(config.get("liftosaur_api_last_synced_datetime"))
+
+        try:
+            rows = fetch_history_rows(
+                api_key=api_key,
+                start_date=api_sync_start,
+                end_date=args.api_end_date,
+                limit=args.api_limit,
+            )
+        except LiftosaurApiError as exc:
+            logger.error(f"❌ {exc}")
+            return 1
+        source_label = "Liftosaur API"
+        logger.info("☁️ Reading Liftosaur API history...")
+    else:
+        try:
+            rows = parse_csv(Path(args.csv), profile_dir=profile_dir)
+        except (FileNotFoundError, ValueError) as exc:
+            logger.error(f"❌ {exc}")
+            return 1
+        source_label = str(args.csv)
+        logger.info(f"📂 Reading {args.csv}...")
+
+    if not rows:
+        logger.info(f"No workouts found from {source_label}.")
+        return 0
+
     workouts = group_workouts(rows)
     logger.info(f"   {len(workouts)} workout(s), {len(rows)} total rows")
 
@@ -731,7 +834,6 @@ def main(argv: list[str] | None = None) -> int:
         logger.error(f"❌ {exc}")
         return 1
 
-    config = load_config(profile_dir)
     calories_enabled = bool(config.get("calories_enabled"))
     fallback_weight_kg = config.get("fallback_weight_kg")
     resolved_weight_kg: float | None = None
@@ -747,6 +849,8 @@ def main(argv: list[str] | None = None) -> int:
                 resolved_weight_kg = None
         if resolved_weight_kg is None:
             logger.warning("⚠️  Calories enabled but no weight available; calories set to 0")
+
+    non_interactive_mode = args.non_interactive or not sys.stdin.isatty()
 
     failures: list[tuple[str, str]] = []
 
@@ -865,7 +969,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             logger.info("   ☁️  Uploading...")
             try:
-                upload_to_garmin(fit_bytes, profile_dir)
+                upload_to_garmin(
+                    fit_bytes,
+                    profile_dir,
+                    non_interactive=non_interactive_mode,
+                )
                 mark_uploaded(workout_datetime, sets, profile_dir)
             except RuntimeError as exc:
                 reason = str(exc)
@@ -892,6 +1000,10 @@ def main(argv: list[str] | None = None) -> int:
         for dt, reason in failures:
             logger.error(f"  {dt} : {reason}")
         return 1
+
+    if args.api and args.all and not args.dry_run and not args.no_upload and selected:
+        config["liftosaur_api_last_synced_datetime"] = max(dt for dt, _ in selected)
+        save_config(config, profile_dir)
 
     logger.info("Done! 🎉")
     return 0

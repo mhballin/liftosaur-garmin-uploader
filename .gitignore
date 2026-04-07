@@ -47,3 +47,14 @@ TODO.MD
 
 liftosaur-garmin-uploader.code-workspace
 .github/copilot-instructions.md
+#
+# Local agent / Caliber / Claude artifacts (ignore local-only agent configs)
+/.caliber/
+/.agents/
+.caliber/**
+/.agents/
+.agents/**
+/.claude/
+.claude/**
+CLAUDE.md
+AGENTS.md

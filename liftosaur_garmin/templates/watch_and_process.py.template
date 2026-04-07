@@ -5,6 +5,7 @@ Monitors WATCH_DIR for new liftosaur_*.csv files and processes them via CLI.
 Uses structured logging with automatic rotation to prevent disk bloat.
 """
 import glob
+import json
 import logging
 import os
 import subprocess
@@ -19,6 +20,7 @@ from pathlib import Path
 WATCH_DIR = "{{watch_dir}}"
 PYTHON = "{{python_path}}"
 PROFILE = "{{profile_name}}"
+PROFILE_DIR = "{{profile_dir}}"
 LOG_FILE = "{{log_file}}"
 PROCESSED_FILE = "{{processed_file}}"
 
@@ -68,6 +70,39 @@ def mark_processed(name: str) -> None:
     Path(PROCESSED_FILE).parent.mkdir(parents=True, exist_ok=True)
     with open(PROCESSED_FILE, "a") as f:
         f.write(name + "\n")
+
+
+def is_api_poll_enabled() -> bool:
+    """Return True when the profile config enables Liftosaur API polling."""
+    config_path = Path(PROFILE_DIR) / "config.json"
+    if not config_path.exists():
+        return False
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning(f"Failed to read profile config for API polling: {exc}")
+        return False
+    return bool(config.get("liftosaur_api_poll_enabled"))
+
+
+def _tail_lines(text: str | None, limit: int = 40) -> str:
+    """Return the last N lines of command output for compact error logging."""
+    if not text:
+        return ""
+    lines = text.splitlines()
+    if not lines:
+        return ""
+    return "\n".join(lines[-limit:])
+
+
+def _log_subprocess_output_tails(stdout: str | None, stderr: str | None, limit: int = 40) -> None:
+    """Log the trailing stdout/stderr lines from a failed subprocess."""
+    stdout_tail = _tail_lines(stdout, limit)
+    stderr_tail = _tail_lines(stderr, limit)
+    if stdout_tail:
+        logger.error("  stdout tail:\n%s", stdout_tail)
+    if stderr_tail:
+        logger.error("  stderr tail:\n%s", stderr_tail)
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -148,11 +183,11 @@ for csv_file in sorted(glob.glob(os.path.join(WATCH_DIR, "liftosaur_*.csv"))):
             mark_processed(basename)
         else:
             logger.error(f"✗ Processing failed (exit {result.returncode}): {basename}")
-            if result.stderr:
-                logger.error(f"  stderr: {result.stderr[:200]}")
+            _log_subprocess_output_tails(result.stdout, result.stderr)
             errors += 1
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         logger.error(f"✗ Processing timeout (5min): {basename}")
+        _log_subprocess_output_tails(exc.stdout, exc.stderr)
         errors += 1
     except Exception as e:
         logger.error(f"✗ Processing error: {e}", exc_info=True)
@@ -160,6 +195,28 @@ for csv_file in sorted(glob.glob(os.path.join(WATCH_DIR, "liftosaur_*.csv"))):
 
 if not found_new:
     logger.debug("No new CSV files detected")
+
+if is_api_poll_enabled():
+    cmd = [PYTHON, "-m", "liftosaur_garmin", "--api", "--all", "--profile", PROFILE]
+    logger.info("Starting Liftosaur API sync")
+    logger.debug(f"Command: {' '.join(cmd)}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0:
+            logger.info("✓ Liftosaur API sync completed")
+        else:
+            logger.error(f"✗ Liftosaur API sync failed (exit {result.returncode})")
+            _log_subprocess_output_tails(result.stdout, result.stderr)
+            errors += 1
+    except subprocess.TimeoutExpired as exc:
+        logger.error("✗ Liftosaur API sync timeout (5min)")
+        _log_subprocess_output_tails(exc.stdout, exc.stderr)
+        errors += 1
+    except Exception as e:
+        logger.error(f"✗ Liftosaur API sync error: {e}", exc_info=True)
+        errors += 1
+else:
+    logger.debug("Liftosaur API polling disabled for this profile")
 
 logger.info(f"Scan complete (errors: {errors})")
 logger.info("=" * 60)
