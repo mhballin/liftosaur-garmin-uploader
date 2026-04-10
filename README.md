@@ -1,12 +1,12 @@
 # 🏋️ Liftosaur → Garmin Uploader
 
-Bridge the gap between [Liftosaur](https://www.liftosaur.com/) and [Garmin Connect](https://connect.garmin.com/). This tool automatically converts your Liftosaur strength training CSV exports or Liftosaur API history into Garmin-compatible FIT files and uploads them to Garmin Connect — no manual entry, no third-party sync services.
+Bridge the gap between [Liftosaur](https://www.liftosaur.com/) and [Garmin Connect](https://connect.garmin.com/). This tool converts your Liftosaur strength training CSV exports or Liftosaur API history into Garmin-compatible FIT files and uploads them to Garmin Connect.
 
 Uploaded workouts appear as native Garmin activities with full support for Training Effect, Training Status, badges, and workout history.
 
-I made this because I wanted to see my workouts in Garmin Connect without manually re-entering them or relying on third-party sync tools. I have fully vibe coded this so it probably has bugs and edge cases I haven't thought of. If you run into any issues, please open an issue or PR!
+I made this because I wanted my Liftosaur workouts to show up in Garmin Connect without re-entering them by hand or relying on third-party sync services. If you run into an issue, please open an issue.
 
-## Most Common Commands
+## Quick Start
 
 If you only remember a few commands, make it these:
 
@@ -42,11 +42,11 @@ liftosaur-garmin workout.csv --no-upload --output my_workout.fit
 ⌚ Garmin Connect
 ```
 
-Once installed, the tool runs in the background. Export a CSV from Liftosaur or enable API polling, and within minutes the workout is parsed, converted to a FIT file, validated, and uploaded to Garmin Connect. No commands to run, nothing to remember — it just works.
+Once installed, the tool runs in the background. Export a CSV from Liftosaur or enable API polling, and within minutes the workout is parsed, converted to a FIT file, and uploaded to Garmin Connect.
 
 On first run, the tool will upload every workout in your Liftosaur export. After that, it tracks what's been uploaded so you won't get duplicates. If you don't want to upload everything at once, move files into the watched folder one at a time to upload at your own pace.
 
-All data (upload history, preferences, Garmin tokens) is stored locally in `~/.liftosaur_garmin/` and organized by profile if you have multiple users.
+All data, including upload history, preferences, and Garmin tokens, is stored locally in `~/.liftosaur_garmin/` and organized by profile if you have multiple users.
 
 ---
 
@@ -108,13 +108,23 @@ source install.sh
 
 If your watched folder is in iCloud Drive, macOS requires Full Disk Access for the background watcher. The setup wizard will guide you through this — it's a one-time step in System Settings → Privacy & Security → Full Disk Access, scoped to your project's Python binary only (not a system-wide change).
 
+### Optional: FIT Validation
+
+Normal use does not require Garmin's `FitCSVTool.jar`.
+
+- If `FitCSVTool.jar` is present in `tools/`, the app validates generated FIT files before upload.
+- If `FitCSVTool.jar` is missing, the app still generates and uploads workouts, but validation is skipped.
+- The standalone `liftosaur-garmin validate ...` command requires `FitCSVTool.jar`.
+
+If you want local validation, download Garmin's FIT SDK and copy `FitCSVTool.jar` into `tools/`.
+
 ---
 
 ## Automatic Uploading
 
-This is the core of the project. The background file watcher monitors a folder for new Liftosaur CSV exports. When a new file appears, it's automatically processed and uploaded.
+The background file watcher monitors a folder for new Liftosaur CSV exports. When a new file appears, it is automatically processed and uploaded.
 
-On macOS the watcher runs via `launchd` and checks for new files on a configurable interval (default: every 5 minutes). Linux support via `systemd` is also available. Let me know if you've gotten it working on Linux or Windows!
+On macOS the watcher runs via `launchd` and checks for new files on a configurable interval. Linux support via `systemd` is also available.
 
 ### iOS Shortcut (Recommended Workflow)
 
@@ -124,7 +134,7 @@ For a seamless phone-to-Garmin experience:
 2. Export your data as CSV (Me → Export History to CSV file → Press Ok)
 3. Use this [iOS Shortcut](https://www.icloud.com/shortcuts/1dad4917516b4a7b833f66d62dd07cb6) to save the CSV to a folder in iCloud Drive (the shortcut will create the folder if needed)
 4. The file watcher picks it up and uploads automatically
-5. Optionally, add an iOS automation to run the shortcut when you leave the gym (or any trigger you prefer)
+5. Optionally, add an iOS automation to run the shortcut automatically
 
 ### Managing the Watcher
 
@@ -168,13 +178,21 @@ Every uploaded workout is tracked so re-processing the same CSV won't create dup
 
 ### FIT Validation
 
-Generated FIT files are automatically validated using Garmin's FIT SDK before uploading. This catches issues before Garmin Connect silently rejects them. The SDK tool (`FitCSVTool.jar`) is included in the repo — no separate download needed.
+If `FitCSVTool.jar` is installed locally, generated FIT files can be validated before upload. This is recommended, but optional for normal use.
 
 To manually validate a file:
 
 ```bash
 liftosaur-garmin validate path/to/file.fit
 ```
+
+### Exercise Mapping Notes
+
+Liftosaur and Garmin do not use the same exercise taxonomy, so some exercises are exact matches and some are best-fit approximations.
+
+- Common exercises are already mapped.
+- Unknown or custom exercises can still upload, but Garmin may show a more generic exercise name.
+- If you want more detail on how mappings were chosen, see [docs/MAPPING_RESEARCH.md](docs/MAPPING_RESEARCH.md).
 
 ---
 
@@ -232,62 +250,29 @@ liftosaur-garmin --api --list
 liftosaur-garmin --list
 ```
 
-### All Flags
+### Common Flags
 
 | Flag | Description |
 |------|-------------|
 | `--setup` | Re-run the setup wizard (Garmin auth, calories, watcher) |
 | `--manage-profiles` / `--profiles` | Open the interactive profile manager |
-| `--profile NAME` | Run this command using a specific profile |
 | `--all` | Upload all new workouts from the CSV |
 | `--date YYYY-MM-DD` | Upload only the matching workout |
 | `--dry-run` | Preview uploads without making changes |
 | `--no-upload` | Generate FIT files locally, skip upload |
-| `--output PATH` | Save the FIT file to a specific path |
 | `--force` | Ignore upload history (allows re-uploads) |
-| `--list` | List workouts in CSV or upload history |
-| `--non-interactive` | Disable prompts and fail fast for automation/background runs |
 | `--api` | Use Liftosaur API history as the workout source |
-| `--api-key KEY` | Override the configured Liftosaur API key for one command |
-| `--api-start-date DATE` | Filter Liftosaur API history by start date |
-| `--api-end-date DATE` | Filter Liftosaur API history by end date |
-| `--api-limit N` | Limit how many Liftosaur history records to fetch |
 | `--skip-validation` | Skip FIT SDK validation before upload |
-| `--timezone ZONE` | Override timezone (e.g. `America/New_York`) |
 | `--verbose` | Show detailed debug output |
 
----
-
-## Project Structure
-
-```
-liftosaur-garmin-uploader/
-├── liftosaur_garmin/          # Main package
-│   ├── cli.py                 # CLI entry point and setup wizard
-│   ├── csv_parser.py          # Liftosaur CSV parsing
-│   ├── workout_builder.py     # FIT message construction
-│   ├── fit/                   # Binary FIT encoder
-│   ├── exercise/              # Exercise mapping and duration logic
-│   ├── uploader.py            # Garmin Connect upload via garth
-│   ├── profile.py             # Multi-user profile management
-│   ├── watcher.py             # File watcher setup (launchd/systemd)
-│   ├── history.py             # Upload tracking
-│   ├── config.py              # Per-profile configuration
-│   └── templates/             # Watcher script and service templates
-├── scripts/                   # Development and validation utilities
-├── tests/                     # Test fixtures and validation tests
-├── tools/                     # FIT SDK tools (FitCSVTool.jar)
-├── install.sh                 # macOS/Linux installer
-├── install.bat                # Windows installer
-└── setup.py                   # Package configuration
-```
+Run `liftosaur-garmin --help` for the full flag list.
 
 ---
 
 ## Troubleshooting
 
 **Garmin rejects the upload silently**
-Validate the FIT file: `liftosaur-garmin validate path/to/file.fit`. Compare against a known-good file with `python scripts/compare_fits.py generated.fit reference.fit`.
+If you have `FitCSVTool.jar` installed locally, validate the FIT file with `liftosaur-garmin validate path/to/file.fit`. You can also compare against a known-good FIT file with `python scripts/compare_fits.py generated.fit reference.fit`.
 
 **Authentication expired**
 Interactive runs can attempt re-authentication automatically. Background watcher and API polling runs are non-interactive and cannot prompt for credentials. Re-run setup for the affected profile: `liftosaur-garmin --setup --profile <name>`.
@@ -297,17 +282,9 @@ Check the log: `liftosaur-garmin --manage-profiles` → Manage file watcher → 
 
 ---
 
-## Technical Notes
+## Advanced Docs
 
-This tool uses a custom binary FIT encoder rather than third-party FIT libraries. Garmin's strength training FIT format has specific structural requirements that generic FIT writers don't handle correctly. The encoder writes little-endian binary with CRC-16 checksums and FIT epoch timestamps (base: 1989-12-31). All weights are converted from pounds to kilograms for FIT compatibility.
-
-FIT validation uses Garmin's official `FitCSVTool.jar` (included in `tools/`), which is part of the free [Garmin FIT SDK](https://developer.garmin.com/fit/download/).
-
----
-
-## Contributing
-
-Contributions are welcome — especially exercise name mappings, bug fixes, and platform testing. If you get this running on Linux or Windows, please open an issue or PR with your experience.
+If you want more technical detail, including FIT validation notes, logging details, and mapping research, see [docs/README.md](docs/README.md).
 
 ---
 

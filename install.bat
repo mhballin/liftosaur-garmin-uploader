@@ -44,7 +44,7 @@ if %PY_MAJOR% EQU 3 if %PY_MINOR% LSS 10 (
 )
 
 if exist .venv (
-  set /p REINSTALL=Virtual environment already exists. Reinstall? (y/N) 
+  set /p REINSTALL=Virtual environment already exists. Reinstall? (y/N)
   if /I not "%REINSTALL%"=="y" (
     echo Skipping venv creation.
   ) else (
@@ -62,7 +62,7 @@ if not exist .venv (
 
 echo ✅ Dependencies installed
 
-set /p RUN_SETUP=Run setup wizard now? (Y/n) 
+set /p RUN_SETUP=Run setup wizard now? (Y/n)
 if "%RUN_SETUP%"=="" (
   .venv\Scripts\python -m liftosaur_garmin --setup
 ) else if /I "%RUN_SETUP%"=="y" (

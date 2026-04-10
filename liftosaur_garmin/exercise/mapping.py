@@ -22,19 +22,21 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 MANUAL_OVERRIDES: dict[str, tuple[int, int]] = {
     # === COMPOUND BARBELL ===
-    "squat": (28, 6), "back squat": (28, 6), "bench press": (0, 1),
+    "squat": (28, 61), "back squat": (28, 6), "bench press": (0, 1),
     "deadlift": (8, 0), "overhead press": (24, 14), "shoulder press": (24, 4),
     "romanian deadlift": (8, 23), "romanian deadlift, barbell": (8, 23),
     "front squat": (28, 8), "sumo deadlift": (8, 15),
     # === BENCH PRESS VARIANTS ===
     "bench press close grip": (0, 4), "bench press wide grip": (0, 25),
     "decline bench press": (0, 5), "incline bench press": (0, 8),
+    "incline bench press, dumbbell": (0, 9),
     "incline bench press wide grip": (0, 8), "dumbbell bench press": (0, 6),
     "incline dumbbell bench press": (0, 9), "sling shot bench press": (0, 1),
     "legs up bench press": (0, 1),
     # === CHEST ===
     "chest press": (0, 6), "incline chest press": (0, 9),
     "iso-lateral chest press": (0, 21), "chest fly": (9, 2),
+    "chest fly, cable": (9, 0),
     "incline chest fly": (9, 3), "dumbbell fly": (9, 2),
     "cable fly": (9, 0), "cable crossover": (9, 0), "pec deck": (9, 0),
     "chest dip": (30, 2),
@@ -81,10 +83,11 @@ MANUAL_OVERRIDES: dict[str, tuple[int, int]] = {
     # === LEGS - SQUAT VARIANTS ===
     "leg press": (28, 0), "seated leg press": (28, 0), "goblet squat": (28, 37),
     "hack squat": (28, 9), "box squat": (28, 7), "overhead squat": (28, 44),
+    "sumo squat": (28, 69),
     "pistol squat": (28, 47), "safety squat bar squat": (28, 6),
     "split squat": (17, 13), "sissy squat": (28, 61), "jump squat": (20, 0),
     "zercher squat": (28, 86), "thruster": (28, 79), "step up": (28, 66),
-    "leg extension": (28, 0),
+    "leg extension": (37, 29),
     # === LEGS - DEADLIFT VARIANTS ===
     "stiff leg deadlift": (8, 1), "straight leg deadlift": (8, 25),
     "deficit deadlift": (8, 0), "trap bar deadlift": (8, 17),
@@ -101,13 +104,16 @@ MANUAL_OVERRIDES: dict[str, tuple[int, int]] = {
     # === HIPS / GLUTES ===
     "hip thrust": (10, 1), "barbell hip thrust": (10, 1),
     "single leg hip thrust": (10, 30), "glute bridge": (10, 6),
-    "glute bridge march": (10, 24), "glute kickback": (10, 0),
+    "glute bridge march": (10, 24), "glute kickback": (11, 30),
     "single leg bridge": (10, 30), "single leg glute bridge on bench": (10, 32),
     "single leg glute bridge straight leg": (10, 30),
     "single leg glute bridge bent knee": (10, 30),
-    "kettlebell swing": (10, 23), "cable pull through": (10, 0),
-    "hip abductor": (11, 0), "hip adductor": (11, 0),
-    "side hip abductor": (11, 0), "side lying clam": (10, 44),
+    "kettlebell swing": (10, 23), "cable pull through": (4, 0),
+    "hip abductor": (11, 28), "hip adductor": (11, 25),
+    "hip abductor, cable": (11, 27),
+    "side hip abductor": (11, 28),
+    "side hip abductor, leverage machine": (11, 28),
+    "side lying clam": (10, 44),
     # === CORE ===
     "plank": (19, 43), "side plank": (19, 66), "reverse plank": (19, 43),
     "mountain climber": (19, 34), "superman": (13, 29),
@@ -148,7 +154,7 @@ GARMIN_CATEGORIES: dict[str, int] = {
     "plyo": 20, "pull_up": 21, "push_up": 22, "row": 23,
     "shoulder_press": 24, "shoulder_stability": 25, "shrug": 26,
     "sit_up": 27, "squat": 28, "total_body": 29,
-    "triceps_extension": 30, "warm_up": 31,
+    "triceps_extension": 30, "warm_up": 31, "banded_exercises": 37,
 }
 
 # ---------------------------------------------------------------------------
@@ -229,11 +235,19 @@ GARMIN_EXERCISES: dict[str, dict[str, int]] = {
     "flye": {
         "cable crossover": 0, "dumbbell flye": 2, "incline dumbbell flye": 3,
     },
+    "chop": {
+        "cable pull through": 0,
+    },
     "hip_raise": {
         "barbell hip thrust on floor": 0, "barbell hip thrust with bench": 1,
         "clam bridge": 6, "hip raise": 11, "kettlebell swing": 23,
         "marching hip raise": 24, "single leg hip raise": 30,
         "single leg hip raise with foot on bench": 32, "clams": 44,
+    },
+    "hip_stability": {
+        "standing cable hip abduction": 27,
+        "standing hip abduction": 28,
+        "standing rear leg raise": 30,
     },
     "plank": {"mountain climber": 34, "plank": 43, "side plank": 66},
     "core": {
@@ -251,6 +265,11 @@ GARMIN_EXERCISES: dict[str, dict[str, int]] = {
         "standing calf raise": 18, "standing dumbbell calf raise": 20,
     },
     "push_up": {"push up": 77, "handstand push up": 25},
+    "banded_exercises": {
+        "donkey kick": 10,
+        "leg abduction": 27,
+        "leg extension": 29,
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -282,10 +301,37 @@ MUSCLE_TO_CATEGORY: dict[str, str] = {
 
 def _normalize_name(name: str) -> str:
     n = name.lower().strip()
-    for suffix in (", barbell", ", dumbbell", ", cable", ", machine",
-                   ", band", ", kettlebell", ", bodyweight", ", ez-bar"):
+    equipment_descriptors = {
+        "barbell",
+        "bodyweight",
+        "cable",
+        "dumbbell",
+        "ez-bar",
+        "kettlebell",
+        "leverage machine",
+        "machine",
+        "band",
+    }
+    parts = [part.strip() for part in n.split(",")]
+    if len(parts) > 1:
+        kept_parts = [parts[0]]
+        kept_parts.extend(
+            part for part in parts[1:] if part and part not in equipment_descriptors
+        )
+        n = ", ".join(kept_parts)
+    for suffix in (
+        ", barbell",
+        ", dumbbell",
+        ", cable",
+        ", machine",
+        ", leverage machine",
+        ", band",
+        ", kettlebell",
+        ", bodyweight",
+        ", ez-bar",
+    ):
         n = n.replace(suffix, "")
-    return n
+    return " ".join(n.split())
 
 
 def _fuzzy_match_in_category(name: str, category_name: str) -> tuple[int | None, float]:
@@ -324,6 +370,7 @@ def lookup_exercise(name: str, target_muscles: str | None = None) -> tuple[int, 
     Falls back to (65534, 0) for truly unknown exercises.
     """
     key = name.strip().lower()
+    normalized_key = _normalize_name(name)
 
     # Tier 1: exact override
     if key in MANUAL_OVERRIDES:
@@ -331,11 +378,11 @@ def lookup_exercise(name: str, target_muscles: str | None = None) -> tuple[int, 
         logger.debug(f"Exercise '{name}' matched tier 1 (exact): {result}")
         return result
 
-    # Tier 1b: partial match
-    for ok, ov in MANUAL_OVERRIDES.items():
-        if ok in key or key in ok:
-            logger.debug(f"Exercise '{name}' matched tier 1b (partial): {ov}")
-            return ov
+    # Tier 1b: exact match after stripping equipment descriptors from the name
+    if normalized_key in MANUAL_OVERRIDES:
+        result = MANUAL_OVERRIDES[normalized_key]
+        logger.debug(f"Exercise '{name}' matched tier 1b (normalized exact): {result}")
+        return result
 
     # Tier 2: fuzzy within muscle-determined category
     if target_muscles:

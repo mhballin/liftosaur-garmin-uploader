@@ -130,7 +130,7 @@ python -m liftosaur_garmin <file.csv> --verbose
    ```python
    # Good
    logger.info(f"Processed {count} sets in {elapsed:.2f}s")
-   
+
    # Avoid
    logger.debug(f"Set {i}: reps={r}, weight={w}, time={t}...")
    ```

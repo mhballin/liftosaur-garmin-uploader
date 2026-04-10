@@ -583,14 +583,14 @@ def format_workout_summary(workout_datetime: str, sets: list[dict], uploaded: bo
 
 def main(argv: list[str] | None = None) -> int:
     args_list = argv if argv is not None else sys.argv[1:]
-    
+
     # Setup logging early -- before any processing
     # Validate command and extract verbose flag
     verbose = "-v" in args_list or "--verbose" in args_list
     setup_logging(verbose=verbose)
 
     migrate_legacy_config()
-    
+
     if args_list and args_list[0] == "validate":
         return run_validate_command(args_list[1:])
 

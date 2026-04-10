@@ -111,12 +111,12 @@ def _log_subprocess_output_tails(stdout: str | None, stderr: str | None, limit: 
 # ────────────────────────────────────────────────────────────────────────────
 def wait_for_file_ready(filepath: str, timeout: int = 30, interval: int = 1) -> bool:
     """Wait for file to stabilize (size unchanged) or timeout.
-    
+
     Args:
         filepath: Path to file to wait for
         timeout: Max seconds to wait
         interval: Check interval in seconds
-    
+
     Returns:
         True if file is ready, False if timeout
     """
@@ -162,23 +162,23 @@ for csv_file in sorted(glob.glob(os.path.join(WATCH_DIR, "liftosaur_*.csv"))):
     if basename in processed:
         logger.debug(f"Skipping already-processed: {basename}")
         continue
-    
+
     found_new = True
     logger.info(f"Detected new file: {basename}")
-    
+
     # Wait for file to stabilize (not being written to)
     if not wait_for_file_ready(csv_file):
         logger.warning(f"File not stable after 30s; skipping: {basename}")
         continue
-    
+
     # Process via CLI
     cmd = [CONSOLE_SCRIPT, csv_file, "--all", "--profile", PROFILE]
     logger.info(f"Processing: {basename}")
     logger.debug(f"Command: {' '.join(cmd)}")
-    
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        
+
         if result.returncode == 0:
             logger.info(f"✓ Processed successfully: {basename}")
             mark_processed(basename)
@@ -221,4 +221,3 @@ else:
 
 logger.info(f"Scan complete (errors: {errors})")
 logger.info("=" * 60)
-

@@ -38,7 +38,7 @@ class FitEncoder:
     def _ensure_defined(self, global_num: int,
                         fields: list[tuple[int, int, int]]) -> int:
         """Define message type if not already defined.
-        
+
         Fix 1.1: Now tracks field signatures to allow different layouts
         of the same message type (e.g., variable-length exercise names,
         rest vs. non-rest workout steps).
@@ -46,13 +46,13 @@ class FitEncoder:
         # Create a hashable signature from the fields
         field_signature = tuple(fields)
         cache_key = (global_num, field_signature)
-        
+
         if cache_key not in self._definitions:
             local = self._next_local()
             self._define(local, global_num, fields)
             self._definitions[cache_key] = local
             logger.debug(f"Defined message {global_num} with local {local} ({len(fields)} fields)")
-        
+
         return self._definitions[cache_key]
 
     def write_file_id(self, ts: datetime):
@@ -173,7 +173,7 @@ class FitEncoder:
                   start_time: datetime | None = None,
                   message_index: int = 0, wkt_step_index: int = 0):
         """Message 225 - Set
-        
+
         Rest sets use a simpler field definition (no category/exercise/weight
         fields) because Garmin Connect rejects rest sets that include those.
         """
@@ -257,7 +257,7 @@ class FitEncoder:
     def write_exercise_title(self, message_index: int, name: str,
                             exercise_category: int, exercise_name: int):
         """Message 264 - Exercise Title
-        
+
         Each exercise name gets its own definition thanks to the
         fixed _ensure_defined caching (variable-length name field).
         """
