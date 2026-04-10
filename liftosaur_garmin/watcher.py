@@ -81,6 +81,12 @@ def _templates_dir() -> Path:
     return Path(__file__).parent / "templates"
 
 
+def _get_console_script_path(python_path: str) -> Path:
+    """Return the installed CLI path for the selected Python environment."""
+    python_executable = Path(python_path).expanduser()
+    return python_executable.parent / "liftosaur-garmin"
+
+
 def render_template(template_name: str, variables: dict) -> str:
     """Render a template file by replacing {{key}} placeholders."""
     template_path = _templates_dir() / template_name
@@ -100,6 +106,14 @@ def install_watcher(
 ) -> bool:
     """Install a watcher appropriate for the current OS."""
     _log_and_validate_python_path(python_path)
+    console_script_path = _get_console_script_path(python_path)
+    if not console_script_path.exists():
+        print(
+            "❌ Watcher setup failed: installed CLI not found at "
+            f"{console_script_path}."
+        )
+        print("   Run `pip install -e .` in this project before enabling the watcher.")
+        return False
     _maybe_warn_icloud_full_disk_access(watch_dir, python_path)
     system = platform.system()
     if system == "Darwin":
@@ -108,10 +122,17 @@ def install_watcher(
             profile_dir,
             watch_dir,
             python_path,
+            console_script_path,
             poll_interval,
         )
     if system == "Linux":
-        return _install_systemd(profile_name, profile_dir, watch_dir, python_path)
+        return _install_systemd(
+            profile_name,
+            profile_dir,
+            watch_dir,
+            python_path,
+            console_script_path,
+        )
 
     print(
         "⚠️  Automatic file watching is not yet supported on Windows. "
@@ -125,6 +146,7 @@ def _install_launchd(
     profile_dir: Path,
     watch_dir: Path,
     python_path: str,
+    console_script_path: Path,
     poll_interval: int | None = None,
 ) -> bool:
     profile_dir.mkdir(parents=True, exist_ok=True)
@@ -134,6 +156,7 @@ def _install_launchd(
         {
             "watch_dir": watch_dir,
             "python_path": python_path,
+            "console_script_path": console_script_path,
             "profile_name": profile_name,
             "profile_dir": profile_dir,
             "log_file": profile_dir / "watcher.log",
@@ -187,6 +210,7 @@ def _install_systemd(
     profile_dir: Path,
     watch_dir: Path,
     python_path: str,
+    console_script_path: Path,
 ) -> bool:
     if not shutil.which("inotifywait"):
         print(
@@ -202,6 +226,7 @@ def _install_systemd(
         {
             "watch_dir": watch_dir,
             "python_path": python_path,
+            "console_script_path": console_script_path,
             "profile_name": profile_name,
             "profile_dir": profile_dir,
             "log_file": profile_dir / "watcher.log",

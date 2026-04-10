@@ -139,16 +139,40 @@ def _prompt_profile_name_validated(prompt: str = "New name: ") -> str:
         return name
 
 
-def _prompt_watch_dir() -> Path:
+def _prompt_watch_dir(existing_watch_dir: str | None = None) -> Path:
+    suggested_dir: Path | None = None
+
+    if existing_watch_dir:
+        existing_dir = Path(existing_watch_dir).expanduser()
+        if existing_dir.exists():
+            suggested_dir = existing_dir
+            if _prompt_yes_no(
+                f"Watch this folder? {existing_dir}",
+                default=True,
+            ):
+                return existing_dir
+        else:
+            print(f"Previously configured watch folder not found: {existing_dir}")
+
     detected_dir = get_default_watch_dir()
-    if detected_dir and _prompt_yes_no(
-        f"Watch this folder? {detected_dir}",
-        default=True,
-    ):
-        return detected_dir
+    if detected_dir and detected_dir != suggested_dir:
+        suggested_dir = detected_dir
+        if _prompt_yes_no(
+            f"Watch this folder? {detected_dir}",
+            default=True,
+        ):
+            return detected_dir
 
     while True:
-        raw_path = input("Path to Liftosaur CSV folder: ").strip()
+        if suggested_dir:
+            raw_path = input(
+                f"Path to Liftosaur CSV folder (default: {suggested_dir}): "
+            ).strip()
+            if not raw_path:
+                return suggested_dir
+        else:
+            raw_path = input("Path to Liftosaur CSV folder: ").strip()
+
         candidate = Path(raw_path).expanduser()
         if candidate.exists():
             return candidate
@@ -175,7 +199,7 @@ def _prompt_poll_interval(default_seconds: int) -> int:
 
 
 def _install_watcher_flow(profile_name: str, profile_dir: Path, config: dict) -> str:
-    watch_dir = _prompt_watch_dir()
+    watch_dir = _prompt_watch_dir(config.get("watch_dir"))
     default_interval = config.get("poll_interval", 300)
     try:
         default_seconds = int(default_interval)
@@ -212,14 +236,18 @@ def _print_profiles_with_details() -> list[str]:
         logger.info("No profiles configured. Run --setup to get started.")
         return []
 
-    default_profile = get_default_profile()
+    current_profile = get_default_profile()
     logger.info("🏋️ Profile Manager")
     logger.info("══════════════════════════════")
+    if current_profile:
+        logger.info(f"Current profile: {current_profile}")
+    else:
+        logger.info("Current profile: none selected")
     logger.info("")
     for name in profiles:
         profile_dir = get_profile_dir(name)
-        if name == default_profile:
-            logger.info(f"  ⭐ {name} (default)")
+        if name == current_profile:
+            logger.info(f"  ⭐ {name} (current)")
         else:
             logger.info(f"     {name}")
         try:
@@ -254,6 +282,29 @@ def _print_profiles_with_details() -> list[str]:
             logger.warning(f"     ⚠️  Failed to read profile data: {exc}")
         logger.info("")
     return profiles
+
+
+def _print_profile_manager_help() -> None:
+    logger.info("Profile Manager Help")
+    logger.info("──────────────────────────────")
+    logger.info("Current profile")
+    logger.info("  The current profile is the one used automatically when you do not pass --profile.")
+    logger.info("")
+    logger.info("Most common commands")
+    logger.info("  liftosaur-garmin --setup")
+    logger.info("  liftosaur-garmin --manage-profiles")
+    logger.info("  liftosaur-garmin --profile kate workout.csv --all")
+    logger.info("  liftosaur-garmin --profile kate --api --all")
+    logger.info("")
+    logger.info("Menu actions")
+    logger.info("  Add new profile: run setup for another person.")
+    logger.info("  Switch current profile: choose which profile is used by default.")
+    logger.info("  Manage file watcher: reinstall, remove, or inspect a profile watcher.")
+    logger.info("")
+    logger.info("Flag difference")
+    logger.info("  --profile NAME selects a profile for one command.")
+    logger.info("  --manage-profiles opens this interactive menu.")
+    logger.info("")
 
 
 def _confirm_reconfigure(profile_name: str) -> bool:
@@ -364,7 +415,7 @@ def _run_setup_wizard() -> int:
 
     total_profiles = len(set(profiles + [profile_name]))
     default_yes = total_profiles == 1
-    set_default = _prompt_yes_no("Set as default profile?", default=default_yes)
+    set_default = _prompt_yes_no("Set as current profile?", default=default_yes)
     if set_default:
         set_default_profile(profile_name)
 
@@ -413,11 +464,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--date", help="Workout date filter (YYYY-MM-DD)")
     parser.add_argument("--all", action="store_true", help="Upload all new workouts")
     parser.add_argument("--output", "-o", help="Output FIT file path")
-    parser.add_argument("--profile", "-p", help="User profile name")
+    parser.add_argument(
+        "--profile",
+        "-p",
+        help="Run this command using the named profile (otherwise uses the current profile)",
+    )
     parser.add_argument(
         "--profiles",
+        "--manage-profiles",
         action="store_true",
-        help="Manage user profiles",
+        help="Open the interactive profile manager",
     )
     parser.add_argument(
         "--timezone",
@@ -548,20 +604,22 @@ def main(argv: list[str] | None = None) -> int:
                 logger.info("──────────────────────────────")
                 logger.info("What would you like to do?\n")
                 logger.info("  [1] Add new profile")
-                logger.info("  [2] Switch default profile")
+                logger.info("  [2] Switch current profile")
                 logger.info("  [3] Rename a profile")
                 logger.info("  [4] Delete a profile")
                 logger.info("  [5] Manage file watcher")
-                logger.info("  [6] Exit\n")
-                choice = _prompt_choice("Choice (1-6): ", 6)
+                logger.info("  [6] Help")
+                logger.info("  [7] Exit\n")
+                choice = _prompt_choice("Choice (1-7): ", 7)
             else:
                 logger.info("──────────────────────────────")
                 logger.info("What would you like to do?\n")
                 logger.info("  [1] Add new profile")
-                logger.info("  [5] Exit\n")
-                choice = _prompt_choice("Choice (1-5): ", 5)
-                if choice not in {1, 5}:
-                    print("Enter a number between 1 and 5.")
+                logger.info("  [2] Help")
+                logger.info("  [3] Exit\n")
+                choice = _prompt_choice("Choice (1-3): ", 3)
+                if choice not in {1, 2, 3}:
+                    print("Enter a number between 1 and 3.")
                     continue
 
             if choice == 1:
@@ -578,7 +636,7 @@ def main(argv: list[str] | None = None) -> int:
                 selection = _prompt_choice("Choice: ", len(profiles))
                 selected = profiles[selection - 1]
                 set_default_profile(selected)
-                logger.info(f"✅ Default profile set to '{selected}'")
+                logger.info(f"✅ Current profile set to '{selected}'")
                 continue
 
             if choice == 3:
@@ -632,13 +690,14 @@ def main(argv: list[str] | None = None) -> int:
                 if default_profile == profile_name:
                     default_path = Path("~/.liftosaur_garmin/default_profile.txt").expanduser()
                     default_path.unlink(missing_ok=True)
-                    logger.info("ℹ️  No default profile set. Use --profiles to set one.")
+                    logger.info("ℹ️  No current profile set. Use --manage-profiles to choose one.")
                 logger.info(f"✅ Profile '{profile_name}' deleted")
                 continue
 
             if choice == 5:
                 if not profiles:
-                    return 0
+                    logger.info("No profiles available yet.")
+                    continue
                 default_profile = get_default_profile()
                 if default_profile in profiles:
                     watcher_profile = default_profile
@@ -696,6 +755,17 @@ def main(argv: list[str] | None = None) -> int:
                 continue
 
             if choice == 6:
+                _print_profile_manager_help()
+                continue
+
+            if choice == 7:
+                return 0
+
+            if not profiles and choice == 2:
+                _print_profile_manager_help()
+                continue
+
+            if not profiles and choice == 3:
                 return 0
 
     if args.setup:

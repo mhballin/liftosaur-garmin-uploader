@@ -6,6 +6,27 @@ Uploaded workouts appear as native Garmin activities with full support for Train
 
 I made this because I wanted to see my workouts in Garmin Connect without manually re-entering them or relying on third-party sync tools. I have fully vibe coded this so it probably has bugs and edge cases I haven't thought of. If you run into any issues, please open an issue or PR!
 
+## Most Common Commands
+
+If you only remember a few commands, make it these:
+
+```bash
+# First-time setup
+liftosaur-garmin --setup
+
+# Manage profiles and watchers
+liftosaur-garmin --manage-profiles
+
+# Upload all new workouts from a CSV (if not automatic via watcher)
+liftosaur-garmin workout.csv --all
+
+# Upload all new workouts from the Liftosaur API
+liftosaur-garmin --api --all
+
+# Build a FIT file locally without uploading
+liftosaur-garmin workout.csv --no-upload --output my_workout.fit
+```
+
 ---
 
 ## How It Works
@@ -56,6 +77,8 @@ source install.sh
 ```
 
 This is the recommended path. It creates a virtual environment, installs dependencies, launches setup, and leaves your shell in the virtual environment.
+
+The background watcher depends on the installed `liftosaur-garmin` CLI inside that virtual environment. If you skip `install.sh` and set the project up manually from a clone, run `pip install -e .` before enabling a watcher for any profile.
 
 If you prefer not to source the script:
 
@@ -108,9 +131,12 @@ For a seamless phone-to-Garmin experience:
 Check status, view logs, or reinstall the watcher anytime:
 
 ```bash
-liftosaur-garmin --profiles
+liftosaur-garmin --manage-profiles
+# or: liftosaur-garmin --profiles
 # → Manage file watcher
 ```
+
+If terminal commands work from inside the repo but the background watcher fails, the usual cause is that the package was never installed into the virtual environment used by the watcher. Re-run `pip install -e .`, then reinstall the watcher for that profile.
 
 ---
 
@@ -119,7 +145,7 @@ liftosaur-garmin --profiles
 Multiple people can use the tool on the same machine. Each profile has its own Garmin credentials, upload history, calorie settings, and file watcher:
 
 ```bash
-liftosaur-garmin --profiles
+liftosaur-garmin --manage-profiles
 ```
 
 This opens an interactive menu to add, rename, switch, or delete profiles and manage each profile's watcher.
@@ -161,7 +187,7 @@ rm -rf liftosaur-garmin-uploader
 rm -rf ~/.liftosaur_garmin/
 ```
 
-On macOS, the file watcher launchd job will also need to be removed. Use `liftosaur-garmin --profiles` → Manage file watcher → Stop and remove before deleting, or manually:
+On macOS, the file watcher launchd job will also need to be removed. Use `liftosaur-garmin --manage-profiles` → Manage file watcher → Stop and remove before deleting, or manually:
 
 ```bash
 launchctl unload ~/Library/LaunchAgents/com.liftosaur.garmin-watcher.*.plist
@@ -211,8 +237,8 @@ liftosaur-garmin --list
 | Flag | Description |
 |------|-------------|
 | `--setup` | Re-run the setup wizard (Garmin auth, calories, watcher) |
-| `--profiles` | Interactive profile management menu |
-| `--profile NAME` | Use a specific profile for this command |
+| `--manage-profiles` / `--profiles` | Open the interactive profile manager |
+| `--profile NAME` | Run this command using a specific profile |
 | `--all` | Upload all new workouts from the CSV |
 | `--date YYYY-MM-DD` | Upload only the matching workout |
 | `--dry-run` | Preview uploads without making changes |
@@ -267,7 +293,7 @@ Validate the FIT file: `liftosaur-garmin validate path/to/file.fit`. Compare aga
 Interactive runs can attempt re-authentication automatically. Background watcher and API polling runs are non-interactive and cannot prompt for credentials. Re-run setup for the affected profile: `liftosaur-garmin --setup --profile <name>`.
 
 **Watcher not detecting files**
-Check the log: `liftosaur-garmin --profiles` → Manage file watcher → View watcher log. Common causes: wrong watch folder, or missing Full Disk Access on macOS when using iCloud Drive.
+Check the log: `liftosaur-garmin --manage-profiles` → Manage file watcher → View watcher log. Common causes: wrong watch folder, or missing Full Disk Access on macOS when using iCloud Drive.
 
 ---
 

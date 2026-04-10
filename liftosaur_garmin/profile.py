@@ -88,8 +88,8 @@ def resolve_profile(cli_arg: str | None) -> str:
         return default_name
 
     message = (
-        "No profile specified and no default profile set. "
-        "Run with --setup to create one."
+        "No profile specified and no current profile is selected. "
+        "Run with --setup to create one or --manage-profiles to choose one."
     )
     logger.debug("Profile resolution failed: %s", message)
     raise RuntimeError(message)

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Background watchers now invoke the installed `liftosaur-garmin` CLI entry point instead of `python -m liftosaur_garmin`, which is more reliable for launchd/systemd environments.
+- Profile manager wording now uses "current profile" language to better match how the selected profile is used in day-to-day commands.
+- Reinstalling a watcher now re-suggests the profile's previously configured watch folder before falling back to the default detected folder.
+
+### Added
+- `--manage-profiles` as a clearer alias for the interactive profile manager (`--profiles` still works).
+- A short "Most Common Commands" section near the top of the README for onboarding.
+- A `Help` option inside the interactive profile manager.
+
+### Notes
+- Existing watchers should be reinstalled once after upgrading so the regenerated watcher script picks up the new CLI-based invocation path.
+
 ## [1.3.1] - 2026-02-26
 
 ### Added
