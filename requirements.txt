@@ -1,3 +1,5 @@
 garth
 fitparse
 pyobjc; platform_system == "Darwin"
+garminconnect
+keyring

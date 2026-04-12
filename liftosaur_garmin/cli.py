@@ -28,6 +28,7 @@ from .profile import (
     resolve_profile,
     set_default_profile,
 )
+from .secrets_store import get_liftosaur_api_key, set_liftosaur_api_key
 from .uploader import fetch_latest_weight_kg, upload_to_garmin
 from .workout_builder import build_fit_for_workout
 from .validation import validate_fit_file
@@ -39,6 +40,26 @@ from .watcher import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _migrate_plaintext_api_key_if_needed(config: dict, profile_dir: Path) -> None:
+    """Move legacy plaintext Liftosaur API key from config.json into keychain."""
+    legacy = (config.get("liftosaur_api_key") or "").strip()
+    if not legacy:
+        return
+    try:
+        secure = (get_liftosaur_api_key(profile_dir) or "").strip()
+    except RuntimeError:
+        return
+    if secure:
+        # Secure value already exists; clear legacy plaintext copy.
+        config["liftosaur_api_key"] = None
+        save_config(config, profile_dir)
+        return
+
+    set_liftosaur_api_key(profile_dir, legacy)
+    config["liftosaur_api_key"] = None
+    save_config(config, profile_dir)
 
 
 def _prompt_yes_no(question: str, default: bool = False) -> bool:
@@ -313,15 +334,19 @@ def _confirm_reconfigure(profile_name: str) -> bool:
 
 
 def _authenticate_garmin(email: str, password: str, garth_dir: Path) -> None:
+    # Use the adapter layer so we can support multiple backends.
+    profile_dir = garth_dir.parent
     try:
-        import garth
-    except ImportError as exc:
-        raise RuntimeError("'garth' is not installed. Run: pip install garth") from exc
+        from .garmin_client import get_garmin_client
+    except Exception as exc:
+        raise RuntimeError(f"Garmin clients adapter unavailable: {exc}") from exc
 
+    client = get_garmin_client(profile_dir)
     try:
-        garth.login(email, password)
-        garth_dir.mkdir(parents=True, exist_ok=True)
-        garth.save(str(garth_dir))
+        client.authenticate(profile_dir, email=email, password=password)
+        config = load_config(profile_dir)
+        config["garmin_client"] = getattr(client, "name", "auto")
+        save_config(config, profile_dir)
     except Exception as exc:
         raise RuntimeError(f"Authentication failed: {exc}") from exc
 
@@ -380,6 +405,8 @@ def _run_setup_wizard() -> int:
                 return 1
 
     config = load_config(profile_dir)
+    _migrate_plaintext_api_key_if_needed(config, profile_dir)
+    _migrate_plaintext_api_key_if_needed(config, profile_dir)
     enable_calories = _prompt_yes_no(
         "Estimate calories for workouts?",
         default=bool(config.get("calories_enabled")),
@@ -391,14 +418,23 @@ def _run_setup_wizard() -> int:
     else:
         config["fallback_weight_kg"] = None
 
-    existing_api_key = get_configured_api_key(config)
+    try:
+        secure_api_key = get_liftosaur_api_key(profile_dir)
+    except RuntimeError as exc:
+        print(f"❌ {exc}")
+        print("Install keyring first, then run setup again.")
+        return 1
+
+    existing_api_key = get_configured_api_key(config, profile_dir=profile_dir) or secure_api_key
     enable_liftosaur_api = _prompt_yes_no(
         "Enable Liftosaur API imports?",
         default=bool(existing_api_key or config.get("liftosaur_api_enabled")),
     )
     if enable_liftosaur_api:
         config["liftosaur_api_enabled"] = True
-        config["liftosaur_api_key"] = _prompt_liftosaur_api_key(existing_api_key)
+        api_key = _prompt_liftosaur_api_key(existing_api_key)
+        set_liftosaur_api_key(profile_dir, api_key)
+        config["liftosaur_api_key"] = None
         config["liftosaur_api_poll_enabled"] = _prompt_yes_no(
             "Enable automatic Liftosaur API polling in the background watcher?",
             default=bool(config.get("liftosaur_api_poll_enabled", True)),
@@ -406,6 +442,7 @@ def _run_setup_wizard() -> int:
     else:
         config["liftosaur_api_enabled"] = False
         config["liftosaur_api_key"] = None
+        set_liftosaur_api_key(profile_dir, None)
         config["liftosaur_api_poll_enabled"] = False
     save_config(config, profile_dir)
 
@@ -810,8 +847,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not args.csv and not args.api:
-        parser.print_help()
-        return 1
+        if config.get("liftosaur_api_enabled"):
+            logger.info("☁️ No CSV provided; using configured Liftosaur API source.")
+            args.api = True
+        else:
+            parser.print_help()
+            return 1
 
     rows: list[dict]
     source_label: str
@@ -820,7 +861,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.api_limit is not None and args.api_limit <= 0:
             logger.error("❌ --api-limit must be a positive integer.")
             return 1
-        api_key = get_configured_api_key(config, args.api_key)
+        api_key = get_configured_api_key(config, args.api_key, profile_dir=profile_dir)
         if not api_key:
             logger.error(
                 "❌ Liftosaur API key not configured for this profile. Run --setup or pass --api-key."
@@ -877,7 +918,10 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Nothing new to upload. Use --force to re-upload.")
         return 0
 
-    if args.date:
+    if args.api and not args.date and not args.all:
+        logger.info("☁️ API mode defaults to uploading all new workouts.")
+        selected = list(target.items())
+    elif args.date:
         selected = [(key, value) for key, value in target.items() if args.date in key]
         if not selected:
             logger.error(f"❌ No workout found matching: {args.date}")

@@ -10,6 +10,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG: dict = {
+    "garmin_client": "auto",
     "calories_enabled": False,
     "fallback_weight_kg": None,
     "poll_interval": 300,

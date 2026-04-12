@@ -12,6 +12,7 @@ from urllib import error, parse, request
 from .exercise.duration import estimate_time_under_tension
 from .exercise.mapping import lookup_exercise
 from .fit.utils import parse_iso
+from .secrets_store import get_liftosaur_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -22,19 +23,38 @@ DEFAULT_WARMUP_REST_SECONDS = 45
 
 _BODYWEIGHT_PATTERN = re.compile(r"^(bodyweight|bw)$", re.IGNORECASE)
 _SET_PATTERN = re.compile(
-    r"^(?P<count>\d+)x(?P<reps>\d+(?:\.\d+)?)"
+    r"^(?P<count>\d+)x(?P<reps>\d+(?:\.\d+)?(?:\|\d+(?:\.\d+)?)*)"
     r"(?:\s+(?:(?P<weight>-?\d+(?:\.\d+)?)\s*(?P<unit>kg|lb|lbs)|(?P<bodyweight>bodyweight|bw)))?$",
     re.IGNORECASE,
 )
+_TRAILING_ANNOTATION_PATTERN = re.compile(r"\s*\([^)]*\)\s*$")
 
 
 class LiftosaurApiError(RuntimeError):
     """Raised when Liftosaur API access or normalization fails."""
 
 
-def get_configured_api_key(config: dict, override: str | None = None) -> str | None:
-    """Return the Liftosaur API key from CLI override or profile config."""
-    candidate = (override or config.get("liftosaur_api_key") or "").strip()
+def get_configured_api_key(
+    config: dict,
+    override: str | None = None,
+    *,
+    profile_dir=None,
+) -> str | None:
+    """Return the Liftosaur API key from CLI override, keychain, or legacy config."""
+    if override:
+        candidate = override.strip()
+        return candidate or None
+
+    if profile_dir is not None:
+        try:
+            secure = (get_liftosaur_api_key(profile_dir) or "").strip()
+            if secure:
+                return secure
+        except RuntimeError:
+            # Keyring may be unavailable in some environments; legacy fallback below.
+            pass
+
+    candidate = (config.get("liftosaur_api_key") or "").strip()
     return candidate or None
 
 
@@ -140,10 +160,29 @@ def parse_history_record(record: dict[str, Any]) -> list[dict]:
     if not exercise_lines:
         raise LiftosaurApiError("Workout text contains no exercise lines.")
 
+    skipped_lines = 0
     for line in exercise_lines:
-        parsed_sets.extend(_parse_exercise_line(line))
+        # Notes/comments are valid in user-authored history text but should not
+        # fail record parsing.
+        if line.startswith("//"):
+            continue
+        try:
+            parsed_sets.extend(_parse_exercise_line(line))
+        except LiftosaurApiError as exc:
+            skipped_lines += 1
+            record_id = record.get("id", "unknown")
+            logger.warning(
+                "Skipping line in Liftosaur record %s: %s | line=%r",
+                record_id,
+                exc,
+                line,
+            )
 
     if not parsed_sets:
+        if skipped_lines:
+            raise LiftosaurApiError(
+                f"Workout text contained no parsable sets ({skipped_lines} invalid line(s))."
+            )
         raise LiftosaurApiError("Workout text contained no parsable sets.")
 
     completed_times = _estimate_completed_times(
@@ -331,11 +370,16 @@ def _parse_set_group(group_text: str) -> list[tuple[int, int, float, str]]:
         spec_text = item.strip()
         if not spec_text:
             continue
+        # Ignore trailing annotations such as "(5RM Test)".
+        spec_text = _TRAILING_ANNOTATION_PATTERN.sub("", spec_text).strip()
+        if not spec_text:
+            continue
         match = _SET_PATTERN.match(spec_text)
         if match is None:
             raise LiftosaurApiError(f"Unsupported set spec: {spec_text}")
         count = int(match.group("count"))
-        reps = int(float(match.group("reps")))
+        reps_token = match.group("reps").split("|", 1)[0]
+        reps = int(float(reps_token))
         bodyweight = match.group("bodyweight")
         if bodyweight and _BODYWEIGHT_PATTERN.match(bodyweight):
             weight_value = 0.0

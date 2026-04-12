@@ -8,6 +8,8 @@ setup(
     python_requires=">=3.10",
     install_requires=[
         "garth",
+        "garminconnect",
+        "keyring",
         "fitparse",
         "pyobjc; platform_system == 'Darwin'",
     ],
