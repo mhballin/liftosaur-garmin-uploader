@@ -39,14 +39,6 @@ tools/lib/
 *.log
 gitleaks-*.json
 
-# Private keys and credentials
-*.pem
-*.key
-*.p12
-*.pfx
-credentials.json
-service-account*.json
-
 # OS / IDE
 .DS_Store
 .vscode/
