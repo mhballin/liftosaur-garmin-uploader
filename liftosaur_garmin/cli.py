@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import getpass
 import logging
 import re
@@ -142,8 +143,8 @@ def _prompt_profile_name(default_name: str) -> str:
         if not name:
             print("Profile name is required.")
             continue
-        if not re.fullmatch(r"[a-z0-9_]+", name):
-            print("Use lowercase letters, numbers, and underscores only.")
+        if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_ ]*", name):
+            print("Use letters, numbers, spaces, and underscores only.")
             continue
         return name
 
@@ -154,8 +155,8 @@ def _prompt_profile_name_validated(prompt: str = "New name: ") -> str:
         if not name:
             print("Profile name is required.")
             continue
-        if not re.fullmatch(r"[a-z0-9_]+", name):
-            print("Use lowercase letters, numbers, and underscores only.")
+        if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_ ]*", name):
+            print("Use letters, numbers, spaces, and underscores only.")
             continue
         return name
 
@@ -435,6 +436,16 @@ def _run_setup_wizard() -> int:
         api_key = _prompt_liftosaur_api_key(existing_api_key)
         set_liftosaur_api_key(profile_dir, api_key)
         config["liftosaur_api_key"] = None
+        import_history = _prompt_yes_no(
+            "Import historical Liftosaur workouts on first API sync?",
+            default=bool(config.get("liftosaur_api_import_history_on_first_sync", True)),
+        )
+        config["liftosaur_api_import_history_on_first_sync"] = import_history
+        if not import_history:
+            now_utc = datetime.now(timezone.utc).replace(microsecond=0)
+            config["liftosaur_api_last_synced_datetime"] = now_utc.isoformat().replace("+00:00", "Z")
+        elif not config.get("liftosaur_api_last_synced_datetime"):
+            config["liftosaur_api_last_synced_datetime"] = None
         config["liftosaur_api_poll_enabled"] = _prompt_yes_no(
             "Enable automatic Liftosaur API polling in the background watcher?",
             default=bool(config.get("liftosaur_api_poll_enabled", True)),
@@ -444,6 +455,15 @@ def _run_setup_wizard() -> int:
         config["liftosaur_api_key"] = None
         set_liftosaur_api_key(profile_dir, None)
         config["liftosaur_api_poll_enabled"] = False
+        config["liftosaur_api_import_history_on_first_sync"] = True
+
+    import_csv_history = _prompt_yes_no(
+        "When importing from CSV for the first time, upload historical workouts?",
+        default=bool(config.get("csv_import_history_on_first_sync", True)),
+    )
+    config["csv_import_history_on_first_sync"] = import_csv_history
+    if import_csv_history:
+        config["csv_first_sync_cutoff_datetime"] = None
     save_config(config, profile_dir)
 
     watcher_summary = "disabled"
@@ -869,7 +889,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         api_sync_start = args.api_start_date
-        if args.all and not api_sync_start and config.get("liftosaur_api_last_synced_datetime"):
+        if not api_sync_start and config.get("liftosaur_api_last_synced_datetime"):
             api_sync_start = str(config.get("liftosaur_api_last_synced_datetime"))
 
         try:
@@ -898,6 +918,35 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     workouts = group_workouts(rows)
+
+    # Optional first-time CSV baseline mode:
+    # if disabled, we set a cutoff to the newest workout currently visible and
+    # only upload workouts newer than that cutoff in future CSV imports.
+    if not args.api and not args.force:
+        csv_cutoff = config.get("csv_first_sync_cutoff_datetime")
+        if not csv_cutoff and not config.get("csv_import_history_on_first_sync", True):
+            cutoff_value = max(workouts.keys())
+            config["csv_first_sync_cutoff_datetime"] = cutoff_value
+            save_config(config, profile_dir)
+            logger.info(
+                "📌 CSV baseline initialized at %s. Historical CSV workouts were skipped by choice.",
+                cutoff_value,
+            )
+            logger.info("   New CSV workouts after this timestamp will upload normally.")
+            return 0
+
+        if csv_cutoff:
+            try:
+                cutoff_dt = parse_iso(str(csv_cutoff))
+            except ValueError:
+                cutoff_dt = None
+            if cutoff_dt is not None:
+                workouts = OrderedDict(
+                    (wdt, sets)
+                    for wdt, sets in workouts.items()
+                    if parse_iso(wdt) > cutoff_dt
+                )
+
     logger.info(f"   {len(workouts)} workout(s), {len(rows)} total rows")
 
     new_workouts = get_new_workouts(workouts, force=args.force, profile_dir=profile_dir)
@@ -1115,7 +1164,7 @@ def main(argv: list[str] | None = None) -> int:
             logger.error(f"  {dt} : {reason}")
         return 1
 
-    if args.api and args.all and not args.dry_run and not args.no_upload and selected:
+    if args.api and not args.dry_run and not args.no_upload and selected:
         config["liftosaur_api_last_synced_datetime"] = max(dt for dt, _ in selected)
         save_config(config, profile_dir)
 

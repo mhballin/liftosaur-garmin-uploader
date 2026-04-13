@@ -44,9 +44,10 @@ liftosaur-garmin workout.csv --no-upload --output my_workout.fit
 
 Once installed, the tool runs in the background. Export a CSV from Liftosaur or enable API polling, and within minutes the workout is parsed, converted to a FIT file, and uploaded to Garmin Connect.
 
-On first run, the tool will upload every workout in your Liftosaur export. After that, it tracks what's been uploaded so you won't get duplicates. If you don't want to upload everything at once, move files into the watched folder one at a time to upload at your own pace.
+During setup, users can choose whether first sync should backfill historical workouts for both API and CSV sources.
 
-All data, including upload history, preferences, and Garmin tokens, is stored locally in `~/.liftosaur_garmin/` and organized by profile if you have multiple users.
+Data like upload history and profile preferences is stored locally in `~/.liftosaur_garmin/`.
+Sensitive values are stored via OS keychain backends (through `keyring`) instead of plaintext config files.
 
 ---
 
@@ -160,6 +161,8 @@ liftosaur-garmin --manage-profiles
 
 This opens an interactive menu to add, rename, switch, or delete profiles and manage each profile's watcher.
 
+Profile names can include uppercase letters and spaces.
+
 ---
 
 ## Features
@@ -167,6 +170,8 @@ This opens an interactive menu to add, rename, switch, or delete profiles and ma
 ### Liftosaur API Import
 
 If you have Liftosaur Premium, you can connect a Liftosaur API key during setup and import workout history directly without waiting for CSV exports. Manual sync and background polling both reuse the same FIT/upload pipeline as CSV imports, and duplicate workouts are skipped automatically.
+
+API mode now uploads all new workouts by default. For first-time setup, you can choose to backfill historical API workouts or only sync new workouts going forward.
 
 ### Calorie Estimation
 
@@ -250,6 +255,11 @@ liftosaur-garmin --api --list
 liftosaur-garmin --list
 ```
 
+Notes:
+- In API mode, `--api` uploads all new workouts by default.
+- `--api --all` remains supported for compatibility.
+- CSV first-sync behavior is configurable in setup: users can backfill historical CSV workouts or baseline and upload only new CSV workouts going forward.
+
 ### Common Flags
 
 | Flag | Description |
@@ -279,6 +289,9 @@ Interactive runs can attempt re-authentication automatically. Background watcher
 
 **Watcher not detecting files**
 Check the log: `liftosaur-garmin --manage-profiles` → Manage file watcher → View watcher log. Common causes: wrong watch folder, or missing Full Disk Access on macOS when using iCloud Drive.
+
+**Some Liftosaur API records are skipped**
+The importer now tolerates common variations (comments and some annotated set formats), but still skips structurally invalid records such as missing timestamps or empty exercise blocks.
 
 ---
 

@@ -2,6 +2,16 @@
 
 This project currently relies on manual CLI testing.
 
+## Setup and Security Sanity Check
+
+Run setup for a profile and verify that authentication and key configuration complete:
+
+```bash
+python -m liftosaur_garmin --setup
+```
+
+Setup now asks whether to backfill historical workouts for both API and CSV first sync.
+
 ## Generate a FIT File
 
 Use an explicit output path under `tests/output/` and give each run a distinct filename.
@@ -9,6 +19,22 @@ Use an explicit output path under `tests/output/` and give each run a distinct f
 ```bash
 python -m liftosaur_garmin tests/fixtures/csv/liftosaur_2026-02-05.csv --no-upload --output tests/output/test_v1.fit
 ```
+
+## Test Liftosaur API Import
+
+List what the API would import for a profile:
+
+```bash
+python -m liftosaur_garmin --profile test --api --list --verbose
+```
+
+Upload API workouts:
+
+```bash
+python -m liftosaur_garmin --profile test --api
+```
+
+In API mode, `--api` now uploads all new workouts by default.
 
 ## Validate the FIT File
 
@@ -32,3 +58,4 @@ python scripts/compare_fits.py tests/output/test_v1.fit tests/fixtures/fit/21783
 - FIT validation checks structure, required fields, and CRC integrity.
 - Validation is optional for normal use when `FitCSVTool.jar` is not present locally.
 - The dedicated `validate` command requires `FitCSVTool.jar`.
+- Liftosaur API parsing now tolerates common comment/annotation variants, but records with missing timestamps or empty exercise blocks are still skipped.

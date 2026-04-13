@@ -19,6 +19,9 @@ DEFAULT_CONFIG: dict = {
     "liftosaur_api_key": None,
     "liftosaur_api_poll_enabled": False,
     "liftosaur_api_last_synced_datetime": None,
+    "liftosaur_api_import_history_on_first_sync": True,
+    "csv_import_history_on_first_sync": True,
+    "csv_first_sync_cutoff_datetime": None,
 }
 
 

@@ -8,14 +8,23 @@ All notable changes to this project will be documented in this file.
 - Background watchers now invoke the installed `liftosaur-garmin` CLI entry point instead of `python -m liftosaur_garmin`, which is more reliable for launchd/systemd environments.
 - Profile manager wording now uses "current profile" language to better match how the selected profile is used in day-to-day commands.
 - Reinstalling a watcher now re-suggests the profile's previously configured watch folder before falling back to the default detected folder.
+- Garmin integration now supports both legacy `garth` and `python-garminconnect` via an adapter layer.
+- Liftosaur API mode now uploads all new workouts by default (`--api --all` remains supported).
+- Liftosaur API parser is now more tolerant of common real-world record text variations (comment lines and some annotated/alternate set specs).
+- Profile names now allow uppercase letters and spaces.
+- Watcher service identifiers now sanitize profile names for launchd/systemd compatibility.
 
 ### Added
 - `--manage-profiles` as a clearer alias for the interactive profile manager (`--profiles` still works).
 - A short "Most Common Commands" section near the top of the README for onboarding.
 - A `Help` option inside the interactive profile manager.
+- Secure secret storage via OS keychain backends (`keyring`) for Liftosaur API keys and garminconnect credentials.
+- First-sync backfill choices in setup for both Liftosaur API and CSV workflows.
+- CSV baseline mode for users who choose not to backfill historical CSV workouts on first sync.
 
 ### Notes
 - Existing watchers should be reinstalled once after upgrading so the regenerated watcher script picks up the new CLI-based invocation path.
+- Legacy plaintext secrets are migrated to keychain-backed storage when possible.
 
 ## [1.3.1] - 2026-02-26
 

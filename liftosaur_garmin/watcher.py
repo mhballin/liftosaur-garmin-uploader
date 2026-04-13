@@ -5,12 +5,19 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
 import shutil
 import stat
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def _watcher_profile_id(profile_name: str) -> str:
+    """Return a watcher-safe identifier derived from the profile name."""
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "-", profile_name).strip("-")
+    return cleaned or "default"
 
 
 def _log_and_validate_python_path(python_path: str) -> None:
@@ -149,6 +156,7 @@ def _install_launchd(
     console_script_path: Path,
     poll_interval: int | None = None,
 ) -> bool:
+    profile_id = _watcher_profile_id(profile_name)
     profile_dir.mkdir(parents=True, exist_ok=True)
     script_path = profile_dir / "watch_and_process.py"
     script_content = render_template(
@@ -179,6 +187,7 @@ def _install_launchd(
         "com.liftosaur.garmin-watcher.plist.template",
         {
             "profile_name": profile_name,
+            "profile_id": profile_id,
             "python_path": python_path,
             "watcher_script_path": script_path,
             "poll_interval": resolved_interval,
@@ -186,7 +195,7 @@ def _install_launchd(
         },
     )
     plist_path = Path(
-        f"~/Library/LaunchAgents/com.liftosaur.garmin-watcher.{profile_name}.plist"
+        f"~/Library/LaunchAgents/com.liftosaur.garmin-watcher.{profile_id}.plist"
     ).expanduser()
     plist_path.write_text(plist_content, encoding="utf-8")
 
@@ -212,6 +221,7 @@ def _install_systemd(
     python_path: str,
     console_script_path: Path,
 ) -> bool:
+    profile_id = _watcher_profile_id(profile_name)
     if not shutil.which("inotifywait"):
         print(
             "⚠️  inotifywait not found. Install inotify-tools: "
@@ -238,7 +248,7 @@ def _install_systemd(
 
     service_dir = Path("~/.config/systemd/user").expanduser()
     service_dir.mkdir(parents=True, exist_ok=True)
-    service_path = service_dir / f"liftosaur-garmin-{profile_name}.service"
+    service_path = service_dir / f"liftosaur-garmin-{profile_id}.service"
     service_content = (
         "[Unit]\n"
         f"Description=Liftosaur Garmin Watcher ({profile_name})\n\n"
@@ -260,7 +270,7 @@ def _install_systemd(
             "--user",
             "enable",
             "--now",
-            f"liftosaur-garmin-{profile_name}.service",
+            f"liftosaur-garmin-{profile_id}.service",
         ],
         check=True,
     )
@@ -271,10 +281,11 @@ def _install_systemd(
 
 def uninstall_watcher(profile_name: str, profile_dir: Path) -> bool:
     """Uninstall a watcher for the current OS."""
+    profile_id = _watcher_profile_id(profile_name)
     system = platform.system()
     if system == "Darwin":
         plist_path = Path(
-            f"~/Library/LaunchAgents/com.liftosaur.garmin-watcher.{profile_name}.plist"
+            f"~/Library/LaunchAgents/com.liftosaur.garmin-watcher.{profile_id}.plist"
         ).expanduser()
         subprocess.run(
             ["launchctl", "unload", str(plist_path)],
@@ -292,7 +303,7 @@ def uninstall_watcher(profile_name: str, profile_dir: Path) -> bool:
 
     if system == "Linux":
         service_path = Path(
-            f"~/.config/systemd/user/liftosaur-garmin-{profile_name}.service"
+            f"~/.config/systemd/user/liftosaur-garmin-{profile_id}.service"
         ).expanduser()
         subprocess.run(
             [
@@ -300,7 +311,7 @@ def uninstall_watcher(profile_name: str, profile_dir: Path) -> bool:
                 "--user",
                 "disable",
                 "--now",
-                f"liftosaur-garmin-{profile_name}.service",
+                f"liftosaur-garmin-{profile_id}.service",
             ],
             capture_output=True,
             text=True,
@@ -320,9 +331,10 @@ def uninstall_watcher(profile_name: str, profile_dir: Path) -> bool:
 
 def watcher_status(profile_name: str) -> str:
     """Return watcher status: running, installed, or not installed."""
+    profile_id = _watcher_profile_id(profile_name)
     system = platform.system()
     if system == "Darwin":
-        label = f"com.liftosaur.garmin-watcher.{profile_name}"
+        label = f"com.liftosaur.garmin-watcher.{profile_id}"
         result = subprocess.run(
             ["launchctl", "list"],
             capture_output=True,
@@ -331,14 +343,14 @@ def watcher_status(profile_name: str) -> str:
         if result.returncode == 0 and label in result.stdout:
             return "running"
         plist_path = Path(
-            f"~/Library/LaunchAgents/com.liftosaur.garmin-watcher.{profile_name}.plist"
+            f"~/Library/LaunchAgents/com.liftosaur.garmin-watcher.{profile_id}.plist"
         ).expanduser()
         if plist_path.exists():
             return "installed"
         return "not installed"
 
     if system == "Linux":
-        service_name = f"liftosaur-garmin-{profile_name}.service"
+        service_name = f"liftosaur-garmin-{profile_id}.service"
         result = subprocess.run(
             ["systemctl", "--user", "is-active", service_name],
             capture_output=True,
@@ -347,7 +359,7 @@ def watcher_status(profile_name: str) -> str:
         if result.returncode == 0 and result.stdout.strip() == "active":
             return "running"
         service_path = Path(
-            f"~/.config/systemd/user/liftosaur-garmin-{profile_name}.service"
+            f"~/.config/systemd/user/liftosaur-garmin-{profile_id}.service"
         ).expanduser()
         if service_path.exists():
             return "installed"
